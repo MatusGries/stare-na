@@ -1,16 +1,40 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState, useEffect } from "react";
+import Galaxy from "@/components/galaxy/Galaxy";
+import SearchBar from "@/components/galaxy/SearchBar";
+import SidePanel from "@/components/galaxy/SidePanel";
+import type { Channel } from "@/types/channel";
 
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+const Index = () => {
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [activeChannel, setActiveChannel] = useState<Channel | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    fetch("/data/channels.json")
+      .then((r) => r.json())
+      .then(setChannels)
+      .catch(console.error);
+  }, []);
+
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
+    <div className="relative h-screen w-screen overflow-hidden" style={{ background: "radial-gradient(ellipse at center, #0d0d2b 0%, #050510 70%, #000000 100%)" }}>
+      <SearchBar value={searchQuery} onChange={setSearchQuery} />
+
+      <Galaxy
+        channels={channels}
+        activeChannel={activeChannel}
+        searchQuery={searchQuery}
+        onSelectChannel={setActiveChannel}
+      />
+
+      <SidePanel
+        channel={activeChannel}
+        allChannels={channels}
+        onClose={() => setActiveChannel(null)}
+        onNavigate={setActiveChannel}
+      />
     </div>
   );
 };
-
-const Index = PlaceholderIndex;
 
 export default Index;
