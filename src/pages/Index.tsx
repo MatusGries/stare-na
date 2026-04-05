@@ -2,12 +2,14 @@ import { useState, useEffect } from "react";
 import Galaxy from "@/components/galaxy/Galaxy";
 import SearchBar from "@/components/galaxy/SearchBar";
 import SidePanel from "@/components/galaxy/SidePanel";
+import ProfilePanel from "@/components/galaxy/ProfilePanel";
 import type { Channel } from "@/types/channel";
 
 const Index = () => {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [profileOpen, setProfileOpen] = useState(false);
 
   useEffect(() => {
     fetch("/data/channels.json")
@@ -15,6 +17,11 @@ const Index = () => {
       .then(setChannels)
       .catch(console.error);
   }, []);
+
+  const handleBlackHoleClick = () => {
+    setActiveChannel(null);
+    setProfileOpen(true);
+  };
 
   return (
     <div className="relative h-screen w-screen overflow-hidden" style={{ background: "radial-gradient(ellipse at center, #0d0d2b 0%, #050510 70%, #000000 100%)" }}>
@@ -24,15 +31,18 @@ const Index = () => {
         channels={channels}
         activeChannel={activeChannel}
         searchQuery={searchQuery}
-        onSelectChannel={setActiveChannel}
+        onSelectChannel={(ch) => { setProfileOpen(false); setActiveChannel(ch); }}
+        onBlackHoleClick={handleBlackHoleClick}
       />
 
       <SidePanel
         channel={activeChannel}
         allChannels={channels}
         onClose={() => setActiveChannel(null)}
-        onNavigate={setActiveChannel}
+        onNavigate={(ch) => { setProfileOpen(false); setActiveChannel(ch); }}
       />
+
+      <ProfilePanel open={profileOpen} onClose={() => setProfileOpen(false)} />
     </div>
   );
 };
