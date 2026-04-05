@@ -14,7 +14,7 @@ interface GalaxyProps {
   onBlackHoleClick: () => void;
 }
 
-const Galaxy = ({ channels, activeChannel, searchQuery, onSelectChannel }: GalaxyProps) => {
+const Galaxy = ({ channels, activeChannel, searchQuery, onSelectChannel, onBlackHoleClick }: GalaxyProps) => {
   const searchActive = searchQuery.length > 0;
   const query = searchQuery.toLowerCase();
 
