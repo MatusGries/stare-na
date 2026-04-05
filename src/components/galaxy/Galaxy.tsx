@@ -2,6 +2,7 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Stars } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import Star from "./Star";
+import BlackHole from "./BlackHole";
 import CameraController from "./CameraController";
 import type { Channel } from "@/types/channel";
 
@@ -10,6 +11,7 @@ interface GalaxyProps {
   activeChannel: Channel | null;
   searchQuery: string;
   onSelectChannel: (channel: Channel) => void;
+  onBlackHoleClick: () => void;
 }
 
 const Galaxy = ({ channels, activeChannel, searchQuery, onSelectChannel }: GalaxyProps) => {
