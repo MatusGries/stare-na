@@ -1,0 +1,17 @@
+[
+  { "id": "c1", "title": "Visual Research", "description": "A collection of visual inspiration — textures, compositions, color studies, and abstract imagery.", "x": 0, "y": 2, "z": 0, "size": 1.8, "color": "#ff6b6b", "neighbors": ["c2", "c3"] },
+  { "id": "c2", "title": "Typography & Lettering", "description": "Explorations in type design, hand lettering, and experimental fonts.", "x": 4, "y": -1, "z": 3, "size": 1.4, "color": "#feca57", "neighbors": ["c1", "c5"] },
+  { "id": "c3", "title": "Architecture & Space", "description": "Spatial design, architectural photography, and explorations of built environments.", "x": -3, "y": 1, "z": -4, "size": 1.6, "color": "#48dbfb", "neighbors": ["c1", "c4"] },
+  { "id": "c4", "title": "Sound Design", "description": "Field recordings, synthesis experiments, and sonic textures.", "x": -5, "y": -2, "z": 2, "size": 1.2, "color": "#ff9ff3", "neighbors": ["c3", "c6"] },
+  { "id": "c5", "title": "Poetry & Fragments", "description": "Collected poems, text fragments, and literary inspirations.", "x": 6, "y": 3, "z": -1, "size": 1.0, "color": "#54a0ff", "neighbors": ["c2", "c7"] },
+  { "id": "c6", "title": "Brutalist Web Design", "description": "Raw, unpolished web aesthetics — anti-design and digital brutalism.", "x": -2, "y": -4, "z": -3, "size": 1.5, "color": "#c8d6e5", "neighbors": ["c4", "c8"] },
+  { "id": "c7", "title": "Generative Art", "description": "Algorithmic visuals, creative coding outputs, and procedural graphics.", "x": 3, "y": 5, "z": 4, "size": 1.7, "color": "#5f27cd", "neighbors": ["c5", "c9"] },
+  { "id": "c8", "title": "Film Stills", "description": "Cinematic frames, mood boards from films, and visual storytelling.", "x": -6, "y": 0, "z": 5, "size": 1.3, "color": "#ee5a24", "neighbors": ["c6", "c10"] },
+  { "id": "c9", "title": "Data Visualization", "description": "Information design, charts, maps, and ways of seeing data.", "x": 5, "y": -3, "z": -5, "size": 1.1, "color": "#0abde3", "neighbors": ["c7", "c11"] },
+  { "id": "c10", "title": "Botanical Studies", "description": "Plants, botanical illustration, and nature-inspired patterns.", "x": -4, "y": 4, "z": -2, "size": 1.4, "color": "#10ac84", "neighbors": ["c8", "c12"] },
+  { "id": "c11", "title": "Speculative Futures", "description": "Design fiction, speculative objects, and imagined tomorrows.", "x": 7, "y": 1, "z": 2, "size": 1.6, "color": "#8395a7", "neighbors": ["c9", "c13"] },
+  { "id": "c12", "title": "Textile & Pattern", "description": "Woven textures, fabric swatches, and repeating motifs.", "x": -1, "y": -5, "z": 6, "size": 1.0, "color": "#f368e0", "neighbors": ["c10", "c14"] },
+  { "id": "c13", "title": "Internet Culture", "description": "Memes, digital folklore, and the aesthetics of online spaces.", "x": 2, "y": -2, "z": -6, "size": 1.3, "color": "#ff6348", "neighbors": ["c11", "c15"] },
+  { "id": "c14", "title": "Cartography", "description": "Maps, wayfinding systems, and geographic representations.", "x": -7, "y": 3, "z": 1, "size": 1.2, "color": "#7bed9f", "neighbors": ["c12", "c15"] },
+  { "id": "c15", "title": "Reading List", "description": "Books to read, essays to revisit, and intellectual threads to follow.", "x": 0, "y": -6, "z": -1, "size": 1.5, "color": "#dfe6e9", "neighbors": ["c13", "c14"] }
+]
