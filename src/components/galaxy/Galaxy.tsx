@@ -29,6 +29,8 @@ const Galaxy = ({ channels, activeChannel, searchQuery, onSelectChannel, onBlack
 
       <Stars radius={80} depth={60} count={3000} factor={3} saturation={0} fade speed={0.5} />
 
+      <BlackHole onClick={onBlackHoleClick} />
+
       {channels.map((ch) => (
         <Star
           key={ch.id}
