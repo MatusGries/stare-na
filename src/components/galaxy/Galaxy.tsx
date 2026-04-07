@@ -24,10 +24,13 @@ const Galaxy = ({ channels, activeChannel, searchQuery, onSelectChannel, onBlack
 
   return (
     <Canvas camera={{ position: [0, 0, 20], fov: 60 }} style={{ background: "transparent" }}>
-      <fog attach="fog" args={["#0a0a1a", 15, 45]} />
-      <ambientLight intensity={0.15} />
+      <fog attach="fog" args={["#000000", 30, 80]} />
+      <ambientLight intensity={0.08} />
 
-      <Stars radius={80} depth={60} count={3000} factor={3} saturation={0} fade speed={0.5} />
+      {/* Deep background stars — dense Milky Way layer */}
+      <Stars radius={200} depth={120} count={8000} factor={2} saturation={0} fade speed={0.2} />
+      {/* Mid-field stars */}
+      <Stars radius={100} depth={80} count={5000} factor={1.5} saturation={0} fade speed={0.15} />
 
       <BlackHole onClick={onBlackHoleClick} />
 
@@ -44,17 +47,21 @@ const Galaxy = ({ channels, activeChannel, searchQuery, onSelectChannel, onBlack
 
       <CameraController target={cameraTarget} />
       <OrbitControls
+        makeDefault
         enablePan
         enableZoom
         enableRotate
         dampingFactor={0.05}
-        minDistance={3}
-        maxDistance={50}
+        rotateSpeed={0.6}
+        zoomSpeed={1.2}
+        panSpeed={0.8}
+        minDistance={2}
+        maxDistance={60}
         enableDamping
       />
 
       <EffectComposer>
-        <Bloom luminanceThreshold={0.2} luminanceSmoothing={0.9} intensity={1.5} radius={0.8} />
+        <Bloom luminanceThreshold={0.3} luminanceSmoothing={0.7} intensity={0.8} radius={0.4} />
       </EffectComposer>
     </Canvas>
   );

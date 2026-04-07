@@ -23,50 +23,50 @@ const BlackHole = ({ onClick }: BlackHoleProps) => {
 
   return (
     <group ref={groupRef} position={[0, 0, 0]} onClick={(e) => { e.stopPropagation(); onClick(); }}>
-      {/* Core sphere — dark void */}
+      {/* Core — absolute void */}
       <mesh
         onPointerOver={() => { document.body.style.cursor = "pointer"; }}
         onPointerOut={() => { document.body.style.cursor = "auto"; }}
       >
         <sphereGeometry args={[0.5, 32, 32]} />
-        <meshStandardMaterial color="#000000" emissive="#1a0a2e" emissiveIntensity={0.3} />
+        <meshStandardMaterial color="#000000" emissive="#000000" emissiveIntensity={0} />
       </mesh>
 
-      {/* Accretion disk — outer ring */}
-      <mesh ref={ringRef} rotation={[Math.PI / 2.5, 0, 0]}>
-        <torusGeometry args={[1.0, 0.12, 16, 64]} />
+      {/* Photon ring — hot blue-white, closest to event horizon */}
+      <mesh ref={innerRingRef} rotation={[Math.PI / 2.2, 0.2, 0]}>
+        <torusGeometry args={[0.65, 0.03, 16, 128]} />
         <meshStandardMaterial
-          color="#7c3aed"
-          emissive="#a855f7"
-          emissiveIntensity={2}
+          color="#ffffff"
+          emissive="#d0e8ff"
+          emissiveIntensity={4}
           transparent
-          opacity={0.7}
+          opacity={0.9}
           toneMapped={false}
         />
       </mesh>
 
-      {/* Inner accretion ring */}
-      <mesh ref={innerRingRef} rotation={[Math.PI / 2.2, 0.2, 0]}>
-        <torusGeometry args={[0.72, 0.06, 16, 64]} />
+      {/* Accretion disk — outer, dimmer grey-white */}
+      <mesh ref={ringRef} rotation={[Math.PI / 2.5, 0, 0]}>
+        <torusGeometry args={[1.0, 0.08, 16, 128]} />
         <meshStandardMaterial
-          color="#c084fc"
-          emissive="#e9d5ff"
-          emissiveIntensity={3}
+          color="#aabbcc"
+          emissive="#8899aa"
+          emissiveIntensity={1.2}
           transparent
           opacity={0.5}
           toneMapped={false}
         />
       </mesh>
 
-      {/* Glow sphere */}
+      {/* Gravitational lensing glow — very subtle grey halo */}
       <mesh>
-        <sphereGeometry args={[1.3, 32, 32]} />
+        <sphereGeometry args={[1.4, 32, 32]} />
         <meshStandardMaterial
-          color="#4c1d95"
-          emissive="#7c3aed"
-          emissiveIntensity={0.8}
+          color="#111111"
+          emissive="#334455"
+          emissiveIntensity={0.4}
           transparent
-          opacity={0.08}
+          opacity={0.06}
           toneMapped={false}
         />
       </mesh>

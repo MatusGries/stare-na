@@ -30,8 +30,10 @@ const Star = ({ channel, isActive, isFiltered, searchActive, onClick }: StarProp
     );
   });
 
-  const opacity = searchActive && !isFiltered ? 0.08 : 1;
-  const emissiveIntensity = isActive ? 3 : hovered ? 2.5 : 1.5;
+  const opacity = searchActive && !isFiltered ? 0.06 : 1;
+  // Slightly warm white for active, cool blue-white for hovered, pure white default
+  const starColor = isActive ? "#e8f0ff" : hovered ? "#c8d8ff" : "#ffffff";
+  const emissiveIntensity = isActive ? 2.5 : hovered ? 2 : 1.2;
 
   return (
     <mesh
@@ -51,10 +53,10 @@ const Star = ({ channel, isActive, isFiltered, searchActive, onClick }: StarProp
         document.body.style.cursor = "auto";
       }}
     >
-      <sphereGeometry args={[channel.size * 0.15, 16, 16]} />
+      <sphereGeometry args={[channel.size * 0.12, 16, 16]} />
       <meshStandardMaterial
-        color={channel.color}
-        emissive={channel.color}
+        color={starColor}
+        emissive={starColor}
         emissiveIntensity={emissiveIntensity}
         transparent
         opacity={opacity}

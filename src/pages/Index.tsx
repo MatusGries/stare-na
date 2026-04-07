@@ -24,7 +24,7 @@ const Index = () => {
   };
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden" style={{ background: "radial-gradient(ellipse at center, #0d0d2b 0%, #050510 70%, #000000 100%)" }}>
+    <div className="relative h-screen w-screen overflow-hidden" style={{ background: "#000000" }}>
       <SearchBar value={searchQuery} onChange={setSearchQuery} />
 
       <Galaxy
