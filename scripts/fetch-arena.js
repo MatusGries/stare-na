@@ -27,7 +27,7 @@ async function get(url, retries = MAX_RETRIES) {
     try {
       const res = await fetch(url, {
         headers: {
-          "User-Agent": "knowledge-nebula/1.0 (personal gift project)",
+          "User-Agent": "stare.na/1.0 (personal gift project)",
           "Authorization": `Bearer ${ACCESS_TOKEN}`,
         },
       });

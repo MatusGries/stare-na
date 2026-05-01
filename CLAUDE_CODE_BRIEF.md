@@ -7,7 +7,7 @@ match the upgraded prototype design. Read it fully before touching any file.
 
 ## 0. Context
 
-**Project:** Knowledge Nebula — Are.na channel visualizer, gift for Tereza Slančíková.
+**Project:** stare.na — Are.na channel visualizer, gift for Tereza Slančíková.
 **Stack:** React 18 + TypeScript + React Three Fiber v8 + drei v9 + @react-three/postprocessing + Tailwind + Vite.
 **No new npm packages** unless listed explicitly below.
 
