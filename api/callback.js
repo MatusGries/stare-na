@@ -31,29 +31,31 @@ export default async function handler(req, res) {
 
     const attempts = [];
 
-    // Attempt 1: POST with query string (Are.na documented)
-    let resp = await fetch(`https://dev.are.na/oauth/token?${qs}`, { method: "POST" });
+    const TOKEN_URL = "https://www.are.na/oauth/token";
+
+    // Attempt 1: POST with query string
+    let resp = await fetch(`${TOKEN_URL}?${qs}`, { method: "POST" });
     let text = await resp.text();
-    let data; try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    let data; try { data = JSON.parse(text); } catch { data = { raw: text.slice(0, 500) }; }
     attempts.push({ method: "POST query-string", status: resp.status, body: data });
 
     // Attempt 2: POST with form body
     if (!data.access_token) {
-      resp = await fetch("https://dev.are.na/oauth/token", {
+      resp = await fetch(TOKEN_URL, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: qs,
       });
       text = await resp.text();
-      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      try { data = JSON.parse(text); } catch { data = { raw: text.slice(0, 500) }; }
       attempts.push({ method: "POST form-body", status: resp.status, body: data });
     }
 
-    // Attempt 3: GET with query string (some clients use this)
+    // Attempt 3: GET with query string
     if (!data.access_token) {
-      resp = await fetch(`https://dev.are.na/oauth/token?${qs}`, { method: "GET" });
+      resp = await fetch(`${TOKEN_URL}?${qs}`, { method: "GET" });
       text = await resp.text();
-      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      try { data = JSON.parse(text); } catch { data = { raw: text.slice(0, 500) }; }
       attempts.push({ method: "GET query-string", status: resp.status, body: data });
     }
 

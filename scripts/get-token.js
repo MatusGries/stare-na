@@ -12,10 +12,11 @@ const CLIENT_ID    = get("--client-id") || "mknceyzd7FF7RDk8PVAtBezMGTY-ssVcnq2h
 const REDIRECT_URI = "https://knowledge-nebula-matusgries-projects.vercel.app/api/callback";
 
 const authURL =
-  `https://dev.are.na/oauth/authorize` +
+  `https://www.are.na/oauth/authorize` +
   `?client_id=${CLIENT_ID}` +
   `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
-  `&response_type=code`;
+  `&response_type=code` +
+  `&scope=write`;
 
 console.log("Opening browser for authorization…");
 console.log("If it doesn't open, visit:\n ", authURL, "\n");
