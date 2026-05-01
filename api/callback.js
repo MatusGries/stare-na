@@ -31,7 +31,7 @@ export default async function handler(req, res) {
 
     const attempts = [];
 
-    const TOKEN_URL = "https://www.are.na/oauth/token";
+    const TOKEN_URL = "https://api.are.na/v3/oauth/token";
 
     // Attempt 1: POST with query string
     let resp = await fetch(`${TOKEN_URL}?${qs}`, { method: "POST" });
