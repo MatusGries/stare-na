@@ -8,7 +8,7 @@ import { exec } from "child_process";
 const args = process.argv;
 const get = (flag) => { const i = args.indexOf(flag); return i !== -1 ? args[i + 1] : null; };
 
-const CLIENT_ID    = get("--client-id") || "swASIt-5u36zdwVkimmm89Sv4dpC5c1Q6jlTg5tS1Zc";
+const CLIENT_ID    = get("--client-id") || "mknceyzd7FF7RDk8PVAtBezMGTY-ssVcnq2hLxLdMlI";
 const REDIRECT_URI = "https://knowledge-nebula-matusgries-projects.vercel.app/api/callback";
 
 const authURL =
