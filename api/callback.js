@@ -18,23 +18,44 @@ export default async function handler(req, res) {
       return res.status(500).send("<h2>Missing ARENA_CLIENT_ID or ARENA_CLIENT_SECRET env vars</h2>");
     }
 
-    const body = new URLSearchParams({
+    // Are.na's documented format: POST with params as URL query string.
+    // We try that first, then fall back to form-body if it fails.
+    const params = {
       client_id: CLIENT_ID,
       client_secret: CLIENT_SECRET,
       code,
       redirect_uri: REDIRECT_URI,
       grant_type: "authorization_code",
-    });
+    };
+    const qs = new URLSearchParams(params).toString();
 
-    const resp = await fetch("https://dev.are.na/oauth/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body.toString(),
-    });
+    const attempts = [];
 
-    const text = await resp.text();
-    let data;
-    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    // Attempt 1: POST with query string (Are.na documented)
+    let resp = await fetch(`https://dev.are.na/oauth/token?${qs}`, { method: "POST" });
+    let text = await resp.text();
+    let data; try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    attempts.push({ method: "POST query-string", status: resp.status, body: data });
+
+    // Attempt 2: POST with form body
+    if (!data.access_token) {
+      resp = await fetch("https://dev.are.na/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: qs,
+      });
+      text = await resp.text();
+      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      attempts.push({ method: "POST form-body", status: resp.status, body: data });
+    }
+
+    // Attempt 3: GET with query string (some clients use this)
+    if (!data.access_token) {
+      resp = await fetch(`https://dev.are.na/oauth/token?${qs}`, { method: "GET" });
+      text = await resp.text();
+      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      attempts.push({ method: "GET query-string", status: resp.status, body: data });
+    }
 
     if (data.access_token) {
       return res.status(200).send(`
@@ -42,9 +63,19 @@ export default async function handler(req, res) {
         <pre style="background:#111;color:#0f0;padding:16px;font-size:16px;word-break:break-all">${data.access_token}</pre>
         <p>Run: <code>node scripts/fetch-arena.js --token ABOVE_TOKEN</code></p>
       `);
-    } else {
-      return res.status(200).send(`<h2>Token exchange failed</h2><pre>${JSON.stringify(data, null, 2)}</pre><p>Status: ${resp.status}</p>`);
     }
+
+    const debug = {
+      env: {
+        client_id_len: CLIENT_ID.length,
+        client_secret_len: CLIENT_SECRET.length,
+        client_id_preview: CLIENT_ID.slice(0, 6) + "…",
+      },
+      redirect_uri: REDIRECT_URI,
+      code_preview: String(code).slice(0, 8) + "…",
+      attempts,
+    };
+    return res.status(200).send(`<h2>Token exchange failed</h2><pre style="background:#111;color:#fff;padding:16px;font-size:13px;white-space:pre-wrap">${JSON.stringify(debug, null, 2)}</pre>`);
   } catch (err) {
     return res.status(200).send(`<h2>Exception</h2><pre>${err.stack}</pre>`);
   }
