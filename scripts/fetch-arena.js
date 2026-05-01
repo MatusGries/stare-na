@@ -19,39 +19,91 @@ if (!ACCESS_TOKEN) {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const PER = 25;
+const MAX_RETRIES = 5;
 
-async function get(url) {
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": "knowledge-nebula/1.0 (personal gift project)",
-      "Authorization": `Bearer ${ACCESS_TOKEN}`,
-    },
-  });
-  if (!res.ok) throw new Error(`${res.status} ${url}`);
-  return res.json();
+async function get(url, retries = MAX_RETRIES) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": "knowledge-nebula/1.0 (personal gift project)",
+          "Authorization": `Bearer ${ACCESS_TOKEN}`,
+        },
+      });
+      if (res.ok) return res.json();
+      if (res.status >= 500 || res.status === 429) {
+        const wait = 1500 * (i + 1);
+        console.warn(`    ⚠ ${res.status} on ${url} — retry ${i + 1}/${retries} in ${wait}ms`);
+        await sleep(wait);
+        continue;
+      }
+      throw new Error(`${res.status} ${url}`);
+    } catch (e) {
+      if (i === retries - 1) throw e;
+      const wait = 1500 * (i + 1);
+      console.warn(`    ⚠ fetch error on ${url}: ${e.message} — retry ${i + 1}/${retries} in ${wait}ms`);
+      await sleep(wait);
+    }
+  }
+  throw new Error(`Failed after ${retries} retries: ${url}`);
 }
 
 async function fetchChannels() {
-  console.log(`Fetching channels for ${USER}…`);
-  const data = await get(`${BASE}/users/${USER}/channels?per=100&page=1`);
+  console.log(`Fetching OWNED channels for ${USER}…`);
+  const data = await get(`${BASE}/users/${USER}/channels?per=${PER}&page=1`);
   const channels = data.channels || [];
-  console.log(`  Got ${channels.length} channels (total: ${data.total})`);
+  const total = data.total || channels.length;
+  console.log(`  Got page 1 (${channels.length} of ${total} total)`);
 
-  // Fetch extra pages if needed
-  const totalPages = Math.ceil(data.total / 100);
+  const totalPages = Math.ceil(total / PER);
   for (let p = 2; p <= totalPages; p++) {
     await sleep(DELAY_MS);
-    const page = await get(`${BASE}/users/${USER}/channels?per=100&page=${p}`);
+    const page = await get(`${BASE}/users/${USER}/channels?per=${PER}&page=${p}`);
     channels.push(...(page.channels || []));
+    console.log(`  Got page ${p}/${totalPages} (running: ${channels.length})`);
   }
 
   return channels;
 }
 
-async function fetchBlocks(channelSlug) {
-  const data = await get(`${BASE}/channels/${channelSlug}?per=50&page=1`);
-  const contents = data.contents || [];
-  return contents.slice(0, 50).map((b) => ({
+async function fetchFollowedChannels() {
+  console.log(`Fetching FOLLOWED channels for ${USER}…`);
+  const followed = [];
+  let page = 1;
+  while (true) {
+    const data = await get(`${BASE}/users/${USER}/following?per=${PER}&page=${page}`);
+    const items = data.following || [];
+    if (items.length === 0) break;
+    const chans = items.filter((it) => it && (it.class === "Channel" || it.base_class === "Channel"));
+    followed.push(...chans);
+    console.log(`  Followed page ${page}: +${chans.length} channels (running: ${followed.length})`);
+    if (items.length < PER) break;
+    page++;
+    await sleep(DELAY_MS);
+  }
+  return followed;
+}
+
+async function fetchBlocks(channelSlug, maxBlocks = Infinity) {
+  const PER_BLOCK = 50;
+  const all = [];
+  const first = await get(`${BASE}/channels/${channelSlug}?per=${PER_BLOCK}&page=1`);
+  all.push(...(first.contents || []));
+
+  const total = Math.min(first.length || all.length, maxBlocks);
+  const totalPages = Math.ceil(total / PER_BLOCK);
+  for (let p = 2; p <= totalPages && all.length < maxBlocks; p++) {
+    await sleep(DELAY_MS);
+    try {
+      const page = await get(`${BASE}/channels/${channelSlug}?per=${PER_BLOCK}&page=${p}`);
+      all.push(...(page.contents || []));
+    } catch (e) {
+      console.warn(`    ⚠ page ${p} of ${channelSlug} failed: ${e.message}`);
+    }
+  }
+
+  return all.slice(0, maxBlocks).map((b) => ({
     id: b.id,
     title: b.title || b.generated_title || "",
     kind: b.class,
@@ -59,18 +111,36 @@ async function fetchBlocks(channelSlug) {
   }));
 }
 
+// Cap on blocks per FOLLOWED channel — keeps file size + API load sane while
+// still giving the embedding enough signal. Owned channels are unlimited.
+const FOLLOWED_BLOCK_CAP = 50;
+
 async function main() {
-  const rawChannels = await fetchChannels();
+  const owned    = await fetchChannels();
+  const followed = await fetchFollowedChannels();
+
+  // Dedupe: if a followed channel is also one she owns (rare), keep the owned record.
+  const ownedIds = new Set(owned.map((c) => String(c.id)));
+  const followedDedup = followed.filter((c) => !ownedIds.has(String(c.id)));
+
+  const all = [
+    ...owned.map((c)         => ({ ...c, ownership: "owned"    })),
+    ...followedDedup.map((c) => ({ ...c, ownership: "followed" })),
+  ];
+
+  console.log(`\nTotal: ${all.length} channels (${owned.length} owned + ${followedDedup.length} followed)\n`);
 
   const results = [];
-  for (let i = 0; i < rawChannels.length; i++) {
-    const ch = rawChannels[i];
-    console.log(`  [${i + 1}/${rawChannels.length}] ${ch.title} (${ch.slug})`);
+  for (let i = 0; i < all.length; i++) {
+    const ch  = all[i];
+    const cap = ch.ownership === "owned" ? Infinity : FOLLOWED_BLOCK_CAP;
+    console.log(`  [${i + 1}/${all.length}] (${ch.ownership}) ${ch.title} (${ch.slug})`);
     await sleep(DELAY_MS);
 
     let blocks = [];
     try {
-      blocks = await fetchBlocks(ch.slug);
+      blocks = await fetchBlocks(ch.slug, cap);
+      console.log(`     → ${blocks.length} blocks`);
     } catch (e) {
       console.warn(`    ⚠ blocks failed: ${e.message}`);
     }
@@ -83,6 +153,9 @@ async function main() {
       blockCount: ch.length || 0,
       followerCount: ch.follower_count || 0,
       thumbnailUrl: ch.image?.display?.url || null,
+      ownership: ch.ownership,
+      ownerSlug: ch.user?.slug || null,
+      ownerName: ch.user?.full_name || ch.user?.username || null,
       blocks,
     });
   }
