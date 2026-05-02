@@ -69,7 +69,12 @@ const Index = () => {
         </div>
       )}
 
-      <SearchBar value={searchQuery} onChange={setSearchQuery} />
+      <SearchBar
+        value={searchQuery}
+        onChange={setSearchQuery}
+        channels={channels}
+        onSelect={(ch) => { setProfileOpen(false); setActiveChannel(ch); }}
+      />
 
       <Galaxy
         channels={channels}
