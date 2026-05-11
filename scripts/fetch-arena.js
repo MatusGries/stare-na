@@ -51,19 +51,20 @@ async function get(url, retries = MAX_RETRIES) {
 
 async function fetchChannels() {
   console.log(`Fetching OWNED channels for ${USER}…`);
-  const data = await get(`${BASE}/users/${USER}/channels?per=${PER}&page=1`);
-  const channels = data.channels || [];
-  const total = data.total || channels.length;
-  console.log(`  Got page 1 (${channels.length} of ${total} total)`);
-
-  const totalPages = Math.ceil(total / PER);
-  for (let p = 2; p <= totalPages; p++) {
+  // Paginate until empty/short page. Do NOT trust data.total — Are.na v2 has been
+  // observed to undercount, silently dropping channels.
+  const channels = [];
+  let page = 1;
+  while (true) {
+    const data = await get(`${BASE}/users/${USER}/channels?per=${PER}&page=${page}`);
+    const batch = data.channels || [];
+    if (batch.length === 0) break;
+    channels.push(...batch);
+    console.log(`  Page ${page}: +${batch.length} (running: ${channels.length}, api total: ${data.total})`);
+    if (batch.length < PER) break;
+    page++;
     await sleep(DELAY_MS);
-    const page = await get(`${BASE}/users/${USER}/channels?per=${PER}&page=${p}`);
-    channels.push(...(page.channels || []));
-    console.log(`  Got page ${p}/${totalPages} (running: ${channels.length})`);
   }
-
   return channels;
 }
 
