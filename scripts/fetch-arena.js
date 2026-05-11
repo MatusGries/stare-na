@@ -7,7 +7,7 @@ import { writeFileSync } from "fs";
 
 const BASE = "https://api.are.na/v2";
 const USER = "tereza-slancikova";
-const DELAY_MS = 350; // be polite to the API
+const DELAY_MS = 800; // be polite to the API
 
 // Accept --token <value> flag
 const tokenFlag = process.argv.indexOf("--token");
@@ -33,7 +33,8 @@ async function get(url, retries = MAX_RETRIES) {
       });
       if (res.ok) return res.json();
       if (res.status >= 500 || res.status === 429) {
-        const wait = 1500 * (i + 1);
+        // Rate limit (429) needs significantly longer cool-down than 5xx.
+        const wait = res.status === 429 ? 15000 * (i + 1) : 1500 * (i + 1);
         console.warn(`    ⚠ ${res.status} on ${url} — retry ${i + 1}/${retries} in ${wait}ms`);
         await sleep(wait);
         continue;
@@ -61,7 +62,8 @@ async function fetchChannels() {
     if (batch.length === 0) break;
     channels.push(...batch);
     console.log(`  Page ${page}: +${batch.length} (running: ${channels.length}, api total: ${data.total})`);
-    if (batch.length < PER) break;
+    // Do NOT break on a short page — Are.na pagination returns short pages mid-sequence.
+    // Only an empty batch reliably signals the end.
     page++;
     await sleep(DELAY_MS);
   }
@@ -79,7 +81,8 @@ async function fetchFollowedChannels() {
     const chans = items.filter((it) => it && (it.class === "Channel" || it.base_class === "Channel"));
     followed.push(...chans);
     console.log(`  Followed page ${page}: +${chans.length} channels (running: ${followed.length})`);
-    if (items.length < PER) break;
+    // Same Are.na pagination quirk: short pages can occur mid-sequence.
+    // Only stop on empty.
     page++;
     await sleep(DELAY_MS);
   }
