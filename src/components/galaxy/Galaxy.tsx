@@ -1,6 +1,6 @@
-import { useRef, useMemo } from "react";
+import { useMemo } from "react";
 import * as THREE from "three";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Stars, Line } from "@react-three/drei";
 import { EffectComposer, Bloom, Vignette, Noise } from "@react-three/postprocessing";
 import Star from "./Star";
@@ -57,15 +57,6 @@ const Scene = ({
     });
   }, [activeChannel, channels]);
 
-  // Backdrop group rotates imperceptibly — nebulas and deep field drift while
-  // the semantic galaxy stays anchored to the embedding coordinates.
-  const backdropRef = useRef<THREE.Group>(null);
-  useFrame(({ clock }) => {
-    if (backdropRef.current) {
-      backdropRef.current.rotation.y = clock.getElapsedTime() * 0.0015;
-    }
-  });
-
   return (
     <>
       <fog attach="fog" args={["#000004", 36, 110]} />
@@ -77,16 +68,11 @@ const Scene = ({
         <meshBasicMaterial side={THREE.BackSide} transparent opacity={0} depthWrite={false} />
       </mesh>
 
-      {/* Slowly drifting backdrop: deep field stars + nebulas */}
-      <group ref={backdropRef}>
-        {/* Ultra-deep field — very dense, barely visible */}
-        <Stars radius={280} depth={180} count={14000} factor={0.65} saturation={0} fade speed={0.02} />
-        {/* Deep field — Milky Way density */}
-        <Stars radius={200} depth={120} count={7500} factor={1.6} saturation={0} fade speed={0.10} />
-        {/* Mid field */}
-        <Stars radius={85}  depth={55}  count={2800} factor={1.05} saturation={0} fade speed={0.06} />
-        <NebulaLayer />
-      </group>
+      {/* Anchored backdrop: deep field stars + nebulas — no rotation, no shimmer */}
+      <Stars radius={280} depth={180} count={14000} factor={0.65} saturation={0} fade speed={0} />
+      <Stars radius={200} depth={120} count={7500}  factor={1.6}  saturation={0} fade speed={0} />
+      <Stars radius={85}  depth={55}  count={2800}  factor={1.05} saturation={0} fade speed={0} />
+      <NebulaLayer />
 
       <SupportStars channels={channels} />
 
@@ -124,9 +110,9 @@ const Scene = ({
         panSpeed={0.4}
         enableZoom
         enableRotate
-        dampingFactor={0.055}
-        rotateSpeed={0.35}
-        zoomSpeed={0.7}
+        dampingFactor={0.18}
+        rotateSpeed={0.30}
+        zoomSpeed={0.65}
         minDistance={3}
         maxDistance={120}
         enableDamping

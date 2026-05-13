@@ -62,7 +62,7 @@ const Star = ({
     () => ({
       phase: channel.x * 11.3 + channel.z * 7.7,
       speed: 0.038 + (channel.id.charCodeAt(0) % 8) * 0.003,
-      amp: 0.010 + ((channel.id.charCodeAt(1) ?? 0) % 4) * 0.005,
+      amp: 0.005 + ((channel.id.charCodeAt(1) ?? 0) % 4) * 0.0025,
     }),
     [channel]
   );

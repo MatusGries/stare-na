@@ -95,32 +95,51 @@ const Index = () => {
 
       <ProfilePanel open={profileOpen} onClose={() => setProfileOpen(false)} />
 
-      {/* Overview button — bottom center, very faint */}
-      <button
-        onClick={handleOverview}
-        style={{
-          position: "absolute",
-          bottom: "28px",
-          left: "50%",
-          transform: "translateX(-50%)",
-          background: "none",
-          border: "none",
-          color: "rgba(255,255,255,0.50)",
-          fontSize: "22px",
-          lineHeight: 1,
-          cursor: "pointer",
-          padding: "8px",
-          letterSpacing: 0,
-          userSelect: "none",
-          transition: "color 0.3s",
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.90)")}
-        onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.50)")}
-        title="Return to overview"
-        aria-label="Return to overview"
-      >
-        ⊙
-      </button>
+      {/* Overview button — only shown when zoomed into something */}
+      {(activeChannel || profileOpen) && (
+        <button
+          onClick={handleOverview}
+          style={{
+            position: "absolute",
+            top: "24px",
+            left: "24px",
+            zIndex: 25,
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "8px 14px 8px 12px",
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            borderRadius: "40px",
+            color: "rgba(255,255,255,0.65)",
+            fontSize: "11px",
+            fontFamily: "'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
+            fontWeight: 400,
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            cursor: "pointer",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            transition: "color 0.25s ease, border-color 0.25s ease, background 0.25s ease",
+            animation: "overviewBtnIn 0.4s ease",
+            userSelect: "none",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = "rgba(255,255,255,0.95)";
+            e.currentTarget.style.borderColor = "rgba(255,255,255,0.20)";
+            e.currentTarget.style.background = "rgba(255,255,255,0.07)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = "rgba(255,255,255,0.65)";
+            e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)";
+            e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+          }}
+          aria-label="Return to galaxy overview"
+        >
+          <span style={{ fontSize: "13px", lineHeight: 1, letterSpacing: 0 }}>←</span>
+          <span>Galaxy</span>
+        </button>
+      )}
     </div>
   );
 };

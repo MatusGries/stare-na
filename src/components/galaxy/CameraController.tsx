@@ -55,6 +55,16 @@ const CameraController = ({ target, resetSignal }: CameraControllerProps) => {
     animating.current = true;
   }, [resetSignal]);
 
+  // Abort any in-flight camera animation the moment the user grabs the controls
+  // — otherwise useFrame keeps lerping and fights their drag/rotate input.
+  useEffect(() => {
+    const ctrl = controls as any;
+    if (!ctrl?.addEventListener) return;
+    const abort = () => { animating.current = false; };
+    ctrl.addEventListener("start", abort);
+    return () => ctrl.removeEventListener("start", abort);
+  }, [controls]);
+
   useFrame(() => {
     if (!animating.current) return;
 
