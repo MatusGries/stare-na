@@ -89,7 +89,12 @@
       "Bash(git fetch *)",
       "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" auth setup-git)",
       "Bash(git ls-remote *)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(git credential-manager *)",
+      "Bash(git credential *)",
+      "Bash(cmdkey /list)",
+      "Bash(findstr github.com)",
+      "Bash(gh --version)"
     ]
   }
 }
