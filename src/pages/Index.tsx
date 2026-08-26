@@ -69,6 +69,19 @@ const Index = () => {
         </div>
       )}
 
+      {/* Persistent identity — the intro credit fades out, this stays */}
+      <p
+        style={{
+          position: "absolute", bottom: 20, left: 24, zIndex: 20,
+          fontFamily: "'DM Mono', ui-monospace, monospace", fontSize: 10,
+          letterSpacing: "0.28em", textTransform: "uppercase",
+          color: "rgba(255,255,255,0.30)",
+          userSelect: "none", pointerEvents: "none",
+        }}
+      >
+        stare.na · tereza slančíková
+      </p>
+
       <SearchBar
         value={searchQuery}
         onChange={setSearchQuery}
