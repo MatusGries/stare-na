@@ -14,7 +14,7 @@ const SidePanel = ({ channel, allChannels, onClose, onNavigate }: SidePanelProps
   const neighbors = allChannels.filter((c) => channel.neighbors.includes(c.id));
 
   return (
-    <div className="absolute right-0 top-0 z-30 h-full w-72 overflow-y-auto border-l border-white/[0.06] bg-black/50 backdrop-blur-2xl p-7 animate-in slide-in-from-right duration-300">
+    <div className="absolute right-0 top-0 z-30 h-full w-full sm:w-72 overflow-y-auto border-l border-white/[0.06] bg-black/50 max-sm:bg-black/80 backdrop-blur-2xl p-7 animate-in slide-in-from-right duration-300">
       <button
         onClick={onClose}
         className="absolute top-5 right-5 p-1 text-white/55 hover:text-white/90 transition-colors"
