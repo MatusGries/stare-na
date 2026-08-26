@@ -128,6 +128,12 @@ const Star = ({
         document.body.style.cursor = "auto";
       }}
     >
+      {/* Invisible hit sphere — the visible sprite core is far too small to hover/click reliably */}
+      <mesh>
+        <sphereGeometry args={[1.5, 6, 6]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+
       <sprite>
         <spriteMaterial
           ref={matRef}
