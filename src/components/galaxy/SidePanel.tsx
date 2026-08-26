@@ -94,7 +94,7 @@ const SidePanel = ({ channel, allChannels, onClose, onNavigate }: SidePanelProps
                     className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
                   />
                 ) : (
-                  <span className="text-[9px] text-white/65 px-1.5 leading-tight text-center line-clamp-3">
+                  <span className="text-[11px] text-white/70 px-1.5 leading-tight text-center line-clamp-3">
                     {b.title || b.kind}
                   </span>
                 )}
