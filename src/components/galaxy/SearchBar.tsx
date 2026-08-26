@@ -82,7 +82,7 @@ const SearchBar = ({ value, onChange, channels, onSelect }: SearchBarProps) => {
               setActiveIdx((i) => Math.max(0, i - 1));
             }
           }}
-          className="w-full rounded-full border border-white/[0.14] bg-white/[0.06] py-2 pl-9 pr-8 text-[13px] text-white/95 placeholder:text-white/55 backdrop-blur-xl outline-none focus:border-white/30 transition-colors tracking-wide"
+          className="w-full rounded-full border border-white/[0.14] bg-white/[0.06] py-2 pl-9 pr-8 text-[16px] sm:text-[13px] text-white/95 placeholder:text-white/55 backdrop-blur-xl outline-none focus:border-white/30 transition-colors tracking-wide"
         />
         {value && (
           <button
