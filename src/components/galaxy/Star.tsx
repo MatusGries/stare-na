@@ -148,7 +148,7 @@ const Star = ({
       </sprite>
 
       {showLabel && (
-        <Html center distanceFactor={10} style={{ pointerEvents: "none" }}>
+        <Html center distanceFactor={10} zIndexRange={[10, 0]} style={{ pointerEvents: "none" }}>
           <div
             style={{
               marginTop: "20px",
