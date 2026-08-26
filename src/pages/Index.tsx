@@ -50,7 +50,7 @@ const Index = () => {
             pointerEvents: "none",
           }}
         >
-          <p style={{ fontFamily: "monospace", fontSize: 12, letterSpacing: "0.34em",
+          <p style={{ fontFamily: "'DM Mono', ui-monospace, monospace", fontSize: 12, letterSpacing: "0.34em",
             color: "rgba(255,255,255,0.75)", textTransform: "uppercase",
             animation: "fadeUp 2.2s ease forwards" }}>
             Tereza Slančíková
@@ -60,7 +60,7 @@ const Index = () => {
             animation: "fadeUp 2.2s 0.5s ease forwards", opacity: 0 }}>
             the shape of a mind, mapped in space
           </p>
-          <p style={{ fontFamily: "monospace", fontSize: 10, letterSpacing: "0.28em",
+          <p style={{ fontFamily: "'DM Mono', ui-monospace, monospace", fontSize: 10, letterSpacing: "0.28em",
             textTransform: "uppercase", color: "rgba(255,255,255,0.50)",
             marginTop: 28,
             animation: "fadeUp 2.2s 1.4s ease forwards", opacity: 0 }}>
