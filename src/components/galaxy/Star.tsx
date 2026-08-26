@@ -106,7 +106,7 @@ const Star = ({
     matRef.current.color.lerp(tc, 0.10);
   });
 
-  const showLabel = hovered && (!searchActive || isFiltered);
+  const showLabel = (hovered || isActive) && (!searchActive || isFiltered);
 
   return (
     <group
