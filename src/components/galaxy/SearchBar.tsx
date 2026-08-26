@@ -23,11 +23,15 @@ const SearchBar = ({ value, onChange, channels, onSelect }: SearchBarProps) => {
         (c.description?.toLowerCase().includes(q) ?? false)
       )
       .sort((a, b) => {
-        const at = a.title.toLowerCase();
-        const bt = b.title.toLowerCase();
-        const as = at.startsWith(q) ? 0 : at.includes(q) ? 1 : 2;
-        const bs = bt.startsWith(q) ? 0 : bt.includes(q) ? 1 : 2;
-        return as - bs;
+        // Rank: title starts with query > a word starts with it > mid-word > description-only
+        const rank = (c: Channel) => {
+          const t = c.title.toLowerCase();
+          if (t.startsWith(q)) return 0;
+          if (t.split(/[^a-z0-9]+/).some((w) => w.startsWith(q))) return 1;
+          if (t.includes(q)) return 2;
+          return 3;
+        };
+        return rank(a) - rank(b);
       })
       .slice(0, 8);
   }, [value, channels]);
