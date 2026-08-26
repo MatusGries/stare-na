@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { X, ArrowUpRight } from "lucide-react";
 import type { Channel } from "@/types/channel";
 
@@ -9,6 +10,16 @@ interface SidePanelProps {
 }
 
 const SidePanel = ({ channel, allChannels, onClose, onNavigate }: SidePanelProps) => {
+  useEffect(() => {
+    if (!channel) return;
+    const handle = (e: KeyboardEvent) => {
+      // Ignore Escape typed inside the search input — that one clears the query
+      if (e.key === "Escape" && !(e.target instanceof HTMLInputElement)) onClose();
+    };
+    document.addEventListener("keydown", handle);
+    return () => document.removeEventListener("keydown", handle);
+  }, [channel, onClose]);
+
   if (!channel) return null;
 
   const neighbors = allChannels.filter((c) => channel.neighbors.includes(c.id));
