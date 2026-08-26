@@ -65,14 +65,16 @@ const CameraController = ({ target, resetSignal }: CameraControllerProps) => {
     return () => ctrl.removeEventListener("start", abort);
   }, [controls]);
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     if (!animating.current) return;
 
-    camera.position.lerp(camDest.current, lerpK.current);
+    // Frame-rate independent: same speed at 30fps and 144fps
+    const k = 1 - Math.pow(1 - lerpK.current, delta * 60);
+    camera.position.lerp(camDest.current, k);
 
     const ctrl = controls as any;
     if (ctrl?.target) {
-      ctrl.target.lerp(lookDest.current, lerpK.current);
+      ctrl.target.lerp(lookDest.current, k);
       ctrl.update?.();
     }
 
