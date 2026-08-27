@@ -1,16 +1,13 @@
+// Index.tsx — Tereza's canonical galaxy (the gift).
+// The shared shell lives in GalaxyView; this page only supplies her data,
+// the intro overlay, the corner credit, and her profile panel.
 import { useState, useEffect } from "react";
-import Galaxy from "@/components/galaxy/Galaxy";
-import SearchBar from "@/components/galaxy/SearchBar";
-import SidePanel from "@/components/galaxy/SidePanel";
+import GalaxyView from "@/components/galaxy/GalaxyView";
 import ProfilePanel from "@/components/galaxy/ProfilePanel";
 import type { Channel } from "@/types/channel";
 
 const Index = () => {
   const [channels, setChannels] = useState<Channel[]>([]);
-  const [activeChannel, setActiveChannel] = useState<Channel | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [resetSignal, setResetSignal] = useState(0);
   const [introVisible, setIntroVisible] = useState(true);
 
   useEffect(() => {
@@ -25,19 +22,8 @@ const Index = () => {
     return () => clearTimeout(t1);
   }, []);
 
-  const handleBlackHoleClick = () => {
-    setActiveChannel(null);
-    setProfileOpen(true);
-  };
-
-  const handleOverview = () => {
-    setActiveChannel(null);
-    setProfileOpen(false);
-    setResetSignal((c) => c + 1);
-  };
-
-  return (
-    <div className="relative h-screen w-screen overflow-hidden" style={{ background: "#000004" }}>
+  const chrome = (
+    <>
       {introVisible && (
         <div
           style={{
@@ -81,79 +67,15 @@ const Index = () => {
       >
         stare.na · tereza slančíková
       </p>
+    </>
+  );
 
-      <SearchBar
-        value={searchQuery}
-        onChange={setSearchQuery}
-        channels={channels}
-        onSelect={(ch) => { setProfileOpen(false); setActiveChannel(ch); }}
-      />
-
-      <Galaxy
-        channels={channels}
-        activeChannel={activeChannel}
-        searchQuery={searchQuery}
-        onSelectChannel={(ch) => { setProfileOpen(false); setActiveChannel(ch); }}
-        onBlackHoleClick={handleBlackHoleClick}
-        resetSignal={resetSignal}
-        onOverviewRequest={handleOverview}
-      />
-
-      <SidePanel
-        channel={activeChannel}
-        allChannels={channels}
-        onClose={() => setActiveChannel(null)}
-        onNavigate={(ch) => { setProfileOpen(false); setActiveChannel(ch); }}
-      />
-
-      <ProfilePanel open={profileOpen} onClose={() => setProfileOpen(false)} />
-
-      {/* Overview button — only shown when zoomed into something */}
-      {(activeChannel || profileOpen) && (
-        <button
-          onClick={handleOverview}
-          style={{
-            position: "absolute",
-            top: "24px",
-            left: "24px",
-            zIndex: 25,
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "8px 14px 8px 12px",
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.10)",
-            borderRadius: "40px",
-            color: "rgba(255,255,255,0.65)",
-            fontSize: "11px",
-            fontFamily: "'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
-            fontWeight: 400,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            cursor: "pointer",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-            transition: "color 0.25s ease, border-color 0.25s ease, background 0.25s ease",
-            animation: "overviewBtnIn 0.4s ease",
-            userSelect: "none",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = "rgba(255,255,255,0.95)";
-            e.currentTarget.style.borderColor = "rgba(255,255,255,0.20)";
-            e.currentTarget.style.background = "rgba(255,255,255,0.07)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = "rgba(255,255,255,0.65)";
-            e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)";
-            e.currentTarget.style.background = "rgba(255,255,255,0.04)";
-          }}
-          aria-label="Return to galaxy overview"
-        >
-          <span style={{ fontSize: "13px", lineHeight: 1, letterSpacing: 0 }}>←</span>
-          <span>Galaxy</span>
-        </button>
-      )}
-    </div>
+  return (
+    <GalaxyView
+      channels={channels}
+      chrome={chrome}
+      profilePanel={(open, onClose) => <ProfilePanel open={open} onClose={onClose} />}
+    />
   );
 };
 
