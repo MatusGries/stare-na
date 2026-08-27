@@ -41,7 +41,7 @@ Every embedding-map tool (Nomic Atlas, TensorBoard Projector, WizMap) treats the
 
 **Fetch plan (amended by T1 probe results below):**
 1. `GET api.are.na/v2/search/users?q=<slug>` → exact-slug match → user id (also validates the username). The direct `/users/:slug` endpoint does not exist (404).
-2. `GET /api/channels/:id?page=N` — **our thin Vercel proxy** for `api.are.na/v2/users/:id/channels?per=100` (that endpoint is 401 without auth — see probe results). Sequential (4 pages for 312 channels).
+2. `GET /api/channels/:id?page=N` — **our thin Vercel proxy** for `api.are.na/v2/users/:id/channels` AND `/users/:id/following` (both 401 without auth — see probe results). `per=25` (larger pages 504 on big accounts), paginate by `total_pages`. ~13 pages total for a 312-channel galaxy (owned + followed, matching the gift).
 3. **Bounded block-title enrichment (T1):** for channels with empty descriptions ONLY, fetch first-page contents (`per=50`) for block titles — capped at ~60 requests, largest channels first (~30s). Cryptic-title + empty-description channels are the common case on Are.na; title-only embedding clusters *words*, not *interests*, and the concierge demand test runs the block-title pipeline — v1 must ship the product that was validated. Full per-channel contents fetch stays out (rate cliff).
 4. SidePanel block previews stay lazy — `GET /v2/channels/:id/contents?per=6` on star click.
 5. Model download starts in parallel with step 1.
@@ -80,8 +80,14 @@ Every embedding-map tool (Nomic Atlas, TensorBoard Projector, WizMap) treats the
 - **`/v2/channels/:id|:slug/contents` → 200 anonymous, `per=50` and `per=100` both honored** — lazy SidePanel previews and the bounded enrichment fetch work browser-direct, no proxy needed.
 - **`/v2/channels/:id/thumb` → 200 anonymous** (lightweight channel metadata, useful fallback).
 - **No rate-limit headers on any response** — limits are opaque. Keep the polite inter-page delay on the proxy side, honor 429 with backoff; caching on the proxy absorbs repeat traffic on one token.
-- **Sort order of the channel list: still unverified** (requires the token). Verify when the proxy is built; until then the 750 cap must not assume recency ordering (fetch all pages, sort by `updated_at` client-side — pages are cheap: 8 requests for 750).
+- **Authenticated follow-up (working OAuth token, 2026-08-27):**
+  - **`per=100` and `per=50` → 504** on Tereza's account (Are.na upstream times out building large pages for big accounts; a 13-channel account served per=100 fine). **Use `per=25`** — 200 reliably. Sequential pages: ~6 for her owned channels.
+  - **Pages return fewer items than `per`** (21 of 25) — privates are filtered after pagination. **Paginate by `total_pages`, never by "returned < per"** (this is the bug the old "empty-page pagination" commit fixed; now confirmed at the API level).
+  - **Sort order: NOT reliably by recency** (measured `sortedByRecency: false` on page 1). The 750 cap must fetch all pages and sort by `updated_at` client-side.
+  - **Owned vs followed: her galaxy is 128 owned + ~184 followed = 312.** `/users/:id/channels` returns owned only; the gift galaxy includes `/users/:id/following` too (also auth-gated → same proxy). **v1 decision: a stranger's galaxy = owned + followed, matching the gift** — both endpoints go through the proxy.
+  - **Token mechanics:** dev.are.na personal-access strings are rejected ("Invalid credentials"); only OAuth access tokens work. Exchange endpoint: `POST https://dev.are.na/oauth/token` with a **form-encoded body** (query-string POST returns Are.na's 404 page — this is the standing bug in [api/callback.js](../../api/callback.js)). Working token stored in `.env.local` (gitignored); add as `ARENA_ACCESS_TOKEN` env var in Vercel when the proxy ships.
 - Fixture note: `arena_raw.json` lacks `updated_at`; refresh the fixture through the proxy once it exists.
+- **Security cleanup (pending):** Are.na app client secrets are hardcoded in [get-token-local.js](../../scripts/get-token-local.js) / [exchange-code.js](../../scripts/exchange-code.js) and committed to this public repo (one flow has `scope=write`). Rotate the secrets on dev.are.na and move them to `.env.local` when the proxy lands.
 
 ## Testing (eng review — 19 paths, all planned)
 
