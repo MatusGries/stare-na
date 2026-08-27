@@ -86,6 +86,7 @@ Every embedding-map tool (Nomic Atlas, TensorBoard Projector, WizMap) treats the
   - **Sort order: NOT reliably by recency** (measured `sortedByRecency: false` on page 1). The 750 cap must fetch all pages and sort by `updated_at` client-side.
   - **Owned vs followed: her galaxy is 128 owned + ~184 followed = 312.** `/users/:id/channels` returns owned only; the gift galaxy includes `/users/:id/following` too (also auth-gated → same proxy). **v1 decision: a stranger's galaxy = owned + followed, matching the gift** — both endpoints go through the proxy.
   - **Token mechanics:** dev.are.na personal-access strings are rejected ("Invalid credentials"); only OAuth access tokens work. Exchange endpoint: `POST https://dev.are.na/oauth/token` with a **form-encoded body** (query-string POST returns Are.na's 404 page — this is the standing bug in [api/callback.js](../../api/callback.js)). Working token stored in `.env.local` (gitignored); add as `ARENA_ACCESS_TOKEN` env var in Vercel when the proxy ships.
+- **T5 build discoveries (2026-08-27):** Tereza renamed her account — current slug is **terezka** (id 284407); 'tereza-slancikova' is stale and 404s even with auth. Are.na user search tokenizes on hyphens and does not index surnames (q=slancikova returns nothing) — resolveUser scans 3 search pages for an exact slug match, then falls back to probing the authed channels endpoint with the raw slug. Slug endpoints DO work with auth when the slug is current. Are.na 504s pages intermittently even at per=25 — the fetch layer skips failed pages (3-consecutive cap) instead of aborting the kind.
 - Fixture note: `arena_raw.json` lacks `updated_at`; refresh the fixture through the proxy once it exists.
 - **Security cleanup (pending):** Are.na app client secrets are hardcoded in [get-token-local.js](../../scripts/get-token-local.js) / [exchange-code.js](../../scripts/exchange-code.js) and committed to this public repo (one flow has `scope=write`). Rotate the secrets on dev.are.na and move them to `.env.local` when the proxy lands.
 
@@ -222,7 +223,7 @@ Synthesized from this review's findings. Run with Claude Code; checkbox as you s
   - Surfaced by: Step 0 + outside voice (small stuff) — four unverified API assumptions
   - Files: none (browser console; findings → this doc)
   - Verify: doc updated with probe results
-- [ ] **T2 (P1, human: ~4h / CC: ~30min)** — pipeline — Shared embedText module + seeded umap-js + verbatim post-processing port, vitest suite + golden fixture parity
+- [x] **T2 (P1, human: ~4h / CC: ~30min)** — pipeline — Shared embedText module + seeded umap-js + verbatim post-processing port, vitest suite + golden fixture parity
   - Surfaced by: Architecture / Tests — pipeline spec + 19-path coverage plan
   - Files: src/lib/pipeline/*, src/test/*
   - Verify: `bun run test` green incl. determinism double-run + golden fixture
@@ -234,7 +235,7 @@ Synthesized from this review's findings. Run with Claude Code; checkbox as you s
   - Surfaced by: Architecture finding 1 (D2/1A) — Index.tsx hardwired to Tereza
   - Files: src/pages/Index.tsx, src/pages/UserGalaxy.tsx, src/components/GalaxyView.tsx, e2e/root-regression.spec.ts
   - Verify: playwright root regression + manual root check
-- [ ] **T5 (P1, human: ~4h / CC: ~30min)** — routes — /you + /:username, arenaFetch with typed worker protocol, bounded enrichment, cancel-on-unmount, mobile gate
+- [x] **T5 (P1, human: ~4h / CC: ~30min)** — routes — /you + /:username, arenaFetch with typed worker protocol, bounded enrichment, cancel-on-unmount, mobile gate
   - Surfaced by: Architecture 2 (D3/2A) + Tensions 1-2 (D9/D10)
   - Files: src/pages/You.tsx, src/workers/galaxyWorker.ts, src/lib/arenaFetch.ts, App.tsx
   - Verify: fixture e2e (valid user, unknown user, mobile gate) + unit suite
@@ -242,7 +243,7 @@ Synthesized from this review's findings. Run with Claude Code; checkbox as you s
   - Surfaced by: Approach A spec + Performance finding 7 (D8/7A)
   - Files: src/components/galaxy/*, src/lib/layoutCache.ts
   - Verify: unit (cache hit/miss/corrupt) + visual check
-- [ ] **T7 (P2, human: ~30min / CC: ~2min)** — links — SidePanel universal are.na/channel/ URL + tests on both routes
+- [x] **T7 (P2, human: ~30min / CC: ~2min)** — links — SidePanel universal are.na/channel/ URL + tests on both routes
   - Surfaced by: Code Quality finding 4 (D5/4A) — hardcoded tereza-slancikova URL
   - Files: src/components/galaxy/SidePanel.tsx
   - Verify: unit asserts URL shape for both routes
