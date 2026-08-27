@@ -230,7 +230,7 @@ Synthesized from this review's findings. Run with Claude Code; checkbox as you s
   - Surfaced by: Cross-model tension 3 (D11) — unverified library behavior under A quality bar and B mechanic
   - Files: scratch + docs/designs/your-galaxy.md
   - Verify: doc's Layout parity section updated with measured results + fallback
-- [ ] **T4 (P1, human: ~3h / CC: ~20min)** — shell — Extract GalaxyView; Index and UserGalaxy configure it; root-route regression e2e green
+- [x] **T4 (P1, human: ~3h / CC: ~20min)** — shell — Extract GalaxyView; Index and UserGalaxy configure it; root-route regression e2e green
   - Surfaced by: Architecture finding 1 (D2/1A) — Index.tsx hardwired to Tereza
   - Files: src/pages/Index.tsx, src/pages/UserGalaxy.tsx, src/components/GalaxyView.tsx, e2e/root-regression.spec.ts
   - Verify: playwright root regression + manual root check
