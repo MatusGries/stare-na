@@ -1,3 +1,3 @@
-// Re-export the base fixture from the package
-// Override or extend test/expect here if needed
-export { test, expect } from "lovable-agent-playwright-config/fixture";
+// Plain re-export — the previous lovable-agent-playwright-config package was
+// never installed (dead scaffold reference).
+export { test, expect } from "@playwright/test";
