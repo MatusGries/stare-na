@@ -85,7 +85,7 @@ function useDiskMat(speed: number) {
 // a near-core star's invisible hit sphere grazes the same ray slightly closer.
 // Bias 8 ≈ the glare radius: stars >8 units in front still win (they read as
 // separate objects); stars inside the glare lose to the core they're hidden behind.
-function biasedRaycast(this: THREE.Mesh, raycaster: THREE.Raycaster, intersects: THREE.Intersection[]) {
+export function biasedRaycast(this: THREE.Mesh, raycaster: THREE.Raycaster, intersects: THREE.Intersection[]) {
   const hits: THREE.Intersection[] = [];
   THREE.Mesh.prototype.raycast.call(this, raycaster, hits);
   for (const h of hits) {
