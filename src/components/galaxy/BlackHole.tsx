@@ -81,6 +81,19 @@ function useDiskMat(speed: number) {
   }), [speed]);
 }
 
+// Clicks landing inside the core's glare zone belong to the black hole, even when
+// a near-core star's invisible hit sphere grazes the same ray slightly closer.
+// Bias 8 ≈ the glare radius: stars >8 units in front still win (they read as
+// separate objects); stars inside the glare lose to the core they're hidden behind.
+function biasedRaycast(this: THREE.Mesh, raycaster: THREE.Raycaster, intersects: THREE.Intersection[]) {
+  const hits: THREE.Intersection[] = [];
+  THREE.Mesh.prototype.raycast.call(this, raycaster, hits);
+  for (const h of hits) {
+    h.distance = Math.max(0, h.distance - 8);
+    intersects.push(h);
+  }
+}
+
 const BlackHole = ({ onClick }: BlackHoleProps) => {
   const photonRef = useRef<THREE.Mesh>(null);
   const innerRef  = useRef<THREE.Mesh>(null);
@@ -136,7 +149,7 @@ const BlackHole = ({ onClick }: BlackHoleProps) => {
       <mesh ref={outerRef} geometry={outerGeo} material={outerMat}
         rotation={[Math.PI / 2 - 0.30, -0.05, 0]} />
 
-      <mesh>
+      <mesh raycast={biasedRaycast}>
         <sphereGeometry args={[2.2, 12, 12]} />
         <meshBasicMaterial visible={false} />
       </mesh>
