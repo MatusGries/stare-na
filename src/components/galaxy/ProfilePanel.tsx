@@ -28,7 +28,7 @@ const ProfilePanel = ({ open, onClose }: ProfilePanelProps) => {
         <h2 className="text-[16px] font-normal text-white/95 tracking-wide">
           Tereza Slančíková
         </h2>
-        <p className="text-[12px] text-white/65 mt-1 tracking-wide">@tereza-slancikova</p>
+        <p className="text-[12px] text-white/65 mt-1 tracking-wide">@terezka</p>
       </div>
 
       {/* About */}
@@ -39,7 +39,7 @@ const ProfilePanel = ({ open, onClose }: ProfilePanelProps) => {
 
       {/* Are.na link */}
       <a
-        href="https://www.are.na/tereza-slancikova"
+        href="https://www.are.na/terezka"
         target="_blank"
         rel="noopener noreferrer"
         className="inline-flex items-center gap-1.5 text-[10px] tracking-[0.10em] uppercase text-white/65 hover:text-white/95 transition-colors duration-200"

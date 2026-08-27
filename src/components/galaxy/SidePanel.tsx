@@ -117,7 +117,7 @@ const SidePanel = ({ channel, allChannels, onClose, onNavigate }: SidePanelProps
 
       {/* External link */}
       <a
-        href={`https://www.are.na/tereza-slancikova/${channel.slug || channel.id}`}
+        href={`https://www.are.na/channel/${channel.slug || channel.id}`}
         target="_blank"
         rel="noopener noreferrer"
         className="inline-flex items-center gap-1.5 text-[10px] tracking-[0.14em] uppercase text-white/65 hover:text-white/95 transition-colors duration-200"
