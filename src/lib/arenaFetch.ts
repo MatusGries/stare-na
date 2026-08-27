@@ -1,0 +1,203 @@
+// arenaFetch.ts — browser-side Are.na data layer for generated galaxies.
+// Endpoint facts measured in the T1 probe (docs/designs/your-galaxy.md):
+//   · search/users + channel contents are OPEN (browser-direct)
+//   · users/:id/channels and /following are 401 anonymous → go through our
+//     thin Vercel proxy at /api/arena (token server-side only)
+//   · per=25 (larger pages 504 on big accounts); paginate by total_pages —
+//     pages return FEWER items than `per` (privates filtered post-pagination)
+//   · channel list is NOT recency-sorted → the 750 cap sorts client-side
+import type { RawChannel } from "./pipeline/types";
+
+const ARENA = "https://api.are.na/v2";
+export const PER_PAGE = 25;
+export const CHANNEL_CAP = 750;
+const PAGE_DELAY_MS = 350;
+const RETRIES = 3;
+
+export class UnknownUserError extends Error {}
+export class NoChannelsError extends Error {}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+const getJson = async (url: string, signal?: AbortSignal): Promise<any> => {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < RETRIES; attempt++) {
+    try {
+      const r = await fetch(url, { signal });
+      if (r.status === 429 || r.status >= 500) throw new Error(`HTTP ${r.status}`);
+      if (!r.ok) return { __status: r.status };
+      return await r.json();
+    } catch (e) {
+      if (signal?.aborted) throw e;
+      lastErr = e;
+      await sleep(500 * 2 ** attempt); // 0.5s, 1s, 2s
+    }
+  }
+  throw lastErr;
+};
+
+const SEARCH_PAGES = 3;
+
+/**
+ * Resolve an Are.na username (slug) to an id the proxy can use.
+ * Are.na's user search tokenizes on hyphens and doesn't index surnames
+ * (measured: q="tereza-slancikova" returns 3 pages of terezas, q="slancikova"
+ * returns nothing) — so we scan a few search pages for an exact slug match,
+ * then fall back to probing the authed channels endpoint with the raw slug
+ * (slug endpoints work when the slug is CURRENT; stale slugs 404 → unknown).
+ */
+export const resolveUser = async (
+  slug: string,
+  signal?: AbortSignal
+): Promise<{ id: number | string; slug: string; fullName?: string }> => {
+  const q = slug.trim().toLowerCase();
+  for (let page = 1; page <= SEARCH_PAGES; page++) {
+    const data = await getJson(
+      `${ARENA}/search/users?q=${encodeURIComponent(q)}&page=${page}`,
+      signal
+    );
+    const match = (data.users ?? []).find((u: any) => (u.slug ?? "").toLowerCase() === q);
+    if (match) return { id: match.id, slug: match.slug, fullName: match.full_name };
+    if ((data.total_pages ?? 1) <= page) break;
+  }
+  // Search-invisible but real slugs still resolve via the proxy probe
+  if (/^[a-z0-9_-]+$/.test(q)) {
+    const probe = await getJson(`/api/arena?kind=channels&id=${q}&page=1&per=1`, signal);
+    if (!probe.__status) return { id: q, slug: q };
+  }
+  throw new UnknownUserError(slug);
+};
+
+interface FetchProgress {
+  onPage?: (page: number, totalPages: number) => void;
+}
+
+const mapChannel = (c: any): RawChannel => ({
+  id: c.id,
+  slug: c.slug,
+  title: c.title ?? "",
+  description: c.metadata?.description ?? c.description ?? "",
+  blockCount: c.length ?? 0,
+  followerCount: c.follower_count ?? 0,
+  thumbnailUrl: null,
+  // updated_at kept out of RawChannel; used only for the cap sort below
+});
+
+/**
+ * Fetch a user's galaxy channels (owned + followed, matching the gift) via
+ * the proxy. Paginates by total_pages; a mid-fetch failure returns what was
+ * fetched with `partial` set instead of throwing.
+ */
+export const fetchAllChannels = async (
+  userId: number | string,
+  { onPage }: FetchProgress = {},
+  signal?: AbortSignal
+): Promise<{ channels: RawChannel[]; partial?: { fetched: number; expected: number } }> => {
+  const raw: any[] = [];
+  let expected = 0;
+  let failed = false;
+
+  // A failed page is SKIPPED, not fatal — Are.na 504s intermittently and one
+  // bad page must not drop every page after it. Stop a kind only after 3
+  // consecutive failures (the API is likely down, not flaky).
+  const MAX_CONSECUTIVE_FAILURES = 3;
+  for (const kind of ["channels", "following"] as const) {
+    let totalPages = 1;
+    let consecutiveFailures = 0;
+    for (let page = 1; page <= totalPages; page++) {
+      try {
+        const data = await getJson(
+          `/api/arena?kind=${kind}&id=${userId}&page=${page}&per=${PER_PAGE}`,
+          signal
+        );
+        if (data.__status) throw new Error(`HTTP ${data.__status}`);
+        consecutiveFailures = 0;
+        totalPages = data.total_pages ?? 1;
+        if (page === 1) expected += data.length ?? 0;
+        // /following mixes users/blocks in — keep only channels
+        const items = (data.channels ?? []).filter(
+          (c: any) => (c.base_class ?? c.class ?? "Channel") === "Channel" || c.class === "Channel"
+        );
+        raw.push(...items);
+        onPage?.(page, totalPages);
+        if (page < totalPages) await sleep(PAGE_DELAY_MS);
+      } catch (e) {
+        if (signal?.aborted) throw e;
+        failed = true;
+        consecutiveFailures++;
+        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) break;
+      }
+    }
+  }
+
+  // Dedup (a followed own channel can appear twice)
+  const seen = new Set<string>();
+  let channels = raw.filter((c) => {
+    const id = String(c.id);
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+
+  if (!channels.length && !failed) throw new NoChannelsError();
+
+  // 750 cap: list is NOT recency-sorted (T1) — sort by updated_at client-side
+  if (channels.length > CHANNEL_CAP) {
+    channels = [...channels]
+      .sort((a, b) => String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? "")))
+      .slice(0, CHANNEL_CAP);
+  }
+
+  const mapped = channels.map(mapChannel);
+  return failed && mapped.length
+    ? { channels: mapped, partial: { fetched: mapped.length, expected: Math.max(expected, mapped.length) } }
+    : { channels: mapped };
+};
+
+export const ENRICH_MAX_CHANNELS = 60;
+export const ENRICH_PER = 50;
+
+/**
+ * Bounded block-title enrichment (design doc T1 / D9): first-page contents
+ * for description-less channels only, largest first, capped. Browser-direct
+ * (contents endpoint is open). Failures are silently skipped — enrichment is
+ * a quality boost, never a blocker.
+ */
+export const enrichChannels = async (
+  channels: RawChannel[],
+  onProgress?: (done: number, total: number) => void,
+  signal?: AbortSignal
+): Promise<void> => {
+  const targets = channels
+    .filter((c) => !(c.description ?? "").trim() && (c.blockCount ?? 0) > 0)
+    .sort((a, b) => (b.blockCount ?? 0) - (a.blockCount ?? 0))
+    .slice(0, ENRICH_MAX_CHANNELS);
+
+  for (let i = 0; i < targets.length; i++) {
+    if (signal?.aborted) return;
+    try {
+      const data = await getJson(
+        `${ARENA}/channels/${targets[i].id}/contents?per=${ENRICH_PER}`,
+        signal
+      );
+      targets[i].enrichmentTitles = (data.contents ?? [])
+        .map((b: any) => (b.title || b.generated_title || "").trim())
+        .filter(Boolean);
+    } catch {
+      // skip — enrichment is best-effort
+    }
+    onProgress?.(i + 1, targets.length);
+    if (i < targets.length - 1) await sleep(120);
+  }
+};
+
+/** Lazy SidePanel previews: first 6 blocks of one channel, browser-direct. */
+export const fetchBlockPreviews = async (channelId: string, signal?: AbortSignal) => {
+  const data = await getJson(`${ARENA}/channels/${channelId}/contents?per=6`, signal);
+  return (data.contents ?? []).map((b: any) => ({
+    id: b.id,
+    title: b.title || b.generated_title || "",
+    kind: b.kind || b.class || "Block",
+    imageUrl: b.image?.thumb?.url ?? b.image?.square?.url ?? null,
+  }));
+};
