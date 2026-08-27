@@ -153,6 +153,8 @@ const Star = ({
             style={{
               marginTop: "20px",
               color: "rgba(255,255,255,0.85)",
+              // Keeps the label readable against the accretion disk / bloom near the core
+              textShadow: "0 0 6px rgba(0,0,4,0.95), 0 1px 2px rgba(0,0,4,0.9)",
               fontSize: "11px",
               letterSpacing: "0.02em",
               whiteSpace: "nowrap",
