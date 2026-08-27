@@ -17,7 +17,7 @@ Every embedding-map tool (Nomic Atlas, TensorBoard Projector, WizMap) treats the
 
 ## Constraints
 
-- No compute servers: fetching, embedding (transformers.js MiniLM), and layout (umap-js) all run in the browser. v1 has zero server-side storage; a thin cache endpoint is allowed post-A only if shared-link demand shows up.
+- No compute servers: embedding (transformers.js MiniLM) and layout (umap-js) run in the browser. v1 has zero server-side storage. **One thin read-only serverless proxy is required** (T1 probe: the Are.na channel-list endpoint is 401 without auth) — it holds the app token, proxies `/users/:id/channels`, caches, and does nothing else. A cache endpoint for shared links stays post-A.
 - Public channels only (no auth) in v1.
 - Tereza's root-URL galaxy stays canonical and **behaviorally identical** — verified by the root-route regression e2e (the GalaxyView extraction and code splitting change bundles, so "byte-identical" is the wrong test; "a user can't tell" is the right one).
 - The ML stack (transformers.js + onnxruntime WASM) is **route-level code-split**: dynamically imported on `/you` and `/:username` only. The root route's bundle stays free of it.
@@ -39,16 +39,23 @@ Every embedding-map tool (Nomic Atlas, TensorBoard Projector, WizMap) treats the
 
 ## v1 Pipeline Spec (browser, Web Worker)
 
-**Fetch plan:**
-1. `GET api.are.na/v2/users/:slug` → user id (also validates the username).
-2. `GET api.are.na/v2/users/:id/channels?per=100&page=N` — sequential (4 pages for 312 channels).
+**Fetch plan (amended by T1 probe results below):**
+1. `GET api.are.na/v2/search/users?q=<slug>` → exact-slug match → user id (also validates the username). The direct `/users/:slug` endpoint does not exist (404).
+2. `GET /api/channels/:id?page=N` — **our thin Vercel proxy** for `api.are.na/v2/users/:id/channels?per=100` (that endpoint is 401 without auth — see probe results). Sequential (4 pages for 312 channels).
 3. **Bounded block-title enrichment (T1):** for channels with empty descriptions ONLY, fetch first-page contents (`per=50`) for block titles — capped at ~60 requests, largest channels first (~30s). Cryptic-title + empty-description channels are the common case on Are.na; title-only embedding clusters *words*, not *interests*, and the concierge demand test runs the block-title pipeline — v1 must ship the product that was validated. Full per-channel contents fetch stays out (rate cliff).
 4. SidePanel block previews stay lazy — `GET /v2/channels/:id/contents?per=6` on star click.
 5. Model download starts in parallel with step 1.
 
 **Embedding inputs:** `title` (weight 2.0) + `description` (weight 1.0) + enriched block titles (weight 1.5, from step 3) — same weights as [generate_embeddings.py](../../scripts/generate_embeddings.py). **The embedding-assembly module is written once in TS** and shared by the worker and the A2 bun script (below) — never two implementations of the same math.
 
-**Layout parity (with spike — T3/D11):** umap-js `nComponents: 3`, `nNeighbors: 8`, `minDist: 0.3`, cosine distance, seeded RNG. Port [umap_reduce.py](../../scripts/umap_reduce.py) post-processing verbatim: size/emissiveIntensity formulas, top-3 cosine neighbors, normalization/centering. **Known risk:** umap-learn defaults to spectral initialization; umap-js initializes randomly and accepts no custom init — same params do not guarantee the same global structure. A **half-day spike inside Next Step 2** measures umap-js quality vs the Python output on the fixture, tests PCA-as-init workarounds, and prototypes the B enrichment transition. Its findings (including the fallback if parity fails) are written back into this doc before UI work depends on them.
+**Layout parity — SPIKE RESULTS (T3, run 2026-08-27, [spike-umapjs.ts](../../scripts/spike-umapjs.ts) on the 312-channel fixture):**
+- **Quality parity: CONFIRMED.** kNN@10 preservation of embedding-space neighborhoods: umap-js **0.270** vs Python umap-learn **0.284** — statistically the same local-structure quality. The random-init fear was unfounded at this scale. Global orientation differs from the Python layout (expected, different init) — exact visual parity with Tereza's current layout won't happen, but A2 regenerates her layout with the TS pipeline anyway, making the JS layout canonical. PCA-init workaround: **not needed** (and not possible — no public init API).
+- **Determinism: CONFIRMED** — seeded runs (mulberry32) are byte-identical.
+- **Live-epoch reveal (B): CONFIRMED feasible** — `initializeFit()` + `step()` are public API; full fit takes **0.8s** for 312 channels, so epoch choreography is animation-budget, not compute-budget.
+- **Compute budget: HOLDS.** Full-parity embedding (13,556 distinct texts) took 98s in bun/CPU at q8; the v1 workload is ~3,500 texts (312 titles + 141 descriptions + ~3,000 enrichment block titles) ≈ **25s CPU** + model download — inside the 90s desktop budget with margin for WASM overhead.
+- **v1 input cost, measured:** 171/312 channels (55%) have no description; the bounded enrichment covers the 60 largest, leaving 111 title-only. v1 layout preserves embedding neighborhoods at **0.235 vs full-parity's 0.270** (~13% relative haircut) — acceptable for v1, recovered by B's enrichment.
+- **Enrichment is a relayout, not a refinement (measured):** v1 and full-parity layouts overlap at only kNN 0.25 — stars move substantially when block titles arrive. B's "background enrichment" is therefore locked as **recompute + animated transition between layouts** (fits the reveal language: the galaxy "settles").
+- Params locked: `nComponents: 3`, `nNeighbors: 8`, `minDist: 0.3`, cosine, seeded RNG; port [umap_reduce.py](../../scripts/umap_reduce.py) post-processing verbatim (size/emissive formulas, top-3 cosine neighbors, normalization/centering).
 
 **Determinism:** fixed seed + stable input ordering ⇒ same input data → same layout. (WASM inference is deterministic; WebGPU would break this — see mobile gate note.)
 
@@ -65,7 +72,16 @@ Every embedding-map tool (Nomic Atlas, TensorBoard Projector, WizMap) treats the
 
 **Routing:** `/:username` via react-router. The Vercel SPA rewrite **already exists** in [vercel.json](../../vercel.json) — no infra change. Username input lives at `/you` (minimal dark page, inline errors); root stays Tereza's with no added UI. Reserved from username matching **in the client-side matcher**: `/you`, `/data/*`, `/assets/*`, and current static files.
 
-**API probe (Next Step 1, extended):** verify from a browser console — CORS on all three endpoints; `per=100` validity per endpoint; actual rate limits (the 500ms inter-page delay is invented politeness — if the real limit allows, drop it and save ~2s of the money shot); channel list sort order (the 750 cap depends on recency ordering).
+**API probe — RESULTS (T1, run 2026-08-27 from stare-na.vercel.app origin):**
+- **CORS: open** on every probed endpoint — browser-direct fetch works.
+- **`/v2/users/:slug` → 404** (id-only endpoint). Slug→id resolution goes through **`/v2/search/users?q=<slug>` → 200 anonymous**, returns users with `id`, `slug`, `channel_count` — match on exact slug.
+- **`/v2/users/:id` → 200 anonymous.**
+- **`/v2/users/:id/channels` → 401 anonymous** (both slug and numeric-id variants; the gift pipeline only worked because it sent a token). **The channel LIST cannot be fetched from the browser without auth. This amends the fetch plan and premise 3:** a **thin read-only Vercel serverless function** (`/api/channels/:id`) holds an app token and proxies exactly this one endpoint, with response caching (e.g. `s-maxage=300`) and per-IP throttling. Everything else stays browser-direct. This is the same shape as the doc's existing "thin cache endpoint" exception — a proxy, not a compute server; the pipeline (embedding, UMAP) still runs 100% in the browser.
+- **`/v2/channels/:id|:slug/contents` → 200 anonymous, `per=50` and `per=100` both honored** — lazy SidePanel previews and the bounded enrichment fetch work browser-direct, no proxy needed.
+- **`/v2/channels/:id/thumb` → 200 anonymous** (lightweight channel metadata, useful fallback).
+- **No rate-limit headers on any response** — limits are opaque. Keep the polite inter-page delay on the proxy side, honor 429 with backoff; caching on the proxy absorbs repeat traffic on one token.
+- **Sort order of the channel list: still unverified** (requires the token). Verify when the proxy is built; until then the 750 cap must not assume recency ordering (fetch all pages, sort by `updated_at` client-side — pages are cheap: 8 requests for 750).
+- Fixture note: `arena_raw.json` lacks `updated_at`; refresh the fixture through the proxy once it exists.
 
 ## Testing (eng review — 19 paths, all planned)
 
@@ -196,7 +212,7 @@ Lanes: **Lane A:** 1 → 2 (pipeline, pure lib code). **Lane B:** 3 (page shell,
 
 Synthesized from this review's findings. Run with Claude Code; checkbox as you ship.
 
-- [ ] **T1 (P1, human: ~1h / CC: ~10min)** — probe — Verify Are.na API: CORS ×3 endpoints, per limits, rate limits, sort order
+- [x] **T1 (P1, human: ~1h / CC: ~10min)** — probe — Verify Are.na API: CORS ×3 endpoints, per limits, rate limits, sort order
   - Surfaced by: Step 0 + outside voice (small stuff) — four unverified API assumptions
   - Files: none (browser console; findings → this doc)
   - Verify: doc updated with probe results
@@ -204,7 +220,7 @@ Synthesized from this review's findings. Run with Claude Code; checkbox as you s
   - Surfaced by: Architecture / Tests — pipeline spec + 19-path coverage plan
   - Files: src/lib/pipeline/*, src/test/*
   - Verify: `bun run test` green incl. determinism double-run + golden fixture
-- [ ] **T3 (P1, human: ~half day / CC: ~30min)** — spike — umap-js quality vs Python, PCA-init test, enrichment-transition prototype; write findings into doc
+- [x] **T3 (P1, human: ~half day / CC: ~30min)** — spike — umap-js quality vs Python, PCA-init test, enrichment-transition prototype; write findings into doc
   - Surfaced by: Cross-model tension 3 (D11) — unverified library behavior under A quality bar and B mechanic
   - Files: scratch + docs/designs/your-galaxy.md
   - Verify: doc's Layout parity section updated with measured results + fallback
