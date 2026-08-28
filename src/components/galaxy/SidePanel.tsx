@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { X, ArrowUpRight } from "lucide-react";
-import type { Channel } from "@/types/channel";
+import { fetchBlockPreviews } from "@/lib/arenaFetch";
+import type { Block, Channel } from "@/types/channel";
 
 interface SidePanelProps {
   channel: Channel | null;
@@ -10,6 +11,19 @@ interface SidePanelProps {
 }
 
 const SidePanel = ({ channel, allChannels, onClose, onNavigate }: SidePanelProps) => {
+  // Lazy block previews (generated galaxies ship without pre-baked blocks[]):
+  // one open contents request per star click, silently absent on failure.
+  const [lazyBlocks, setLazyBlocks] = useState<Block[]>([]);
+  useEffect(() => {
+    setLazyBlocks([]);
+    if (!channel || channel.blocks?.length) return;
+    const ctrl = new AbortController();
+    fetchBlockPreviews(channel.id, ctrl.signal)
+      .then((blocks) => setLazyBlocks(blocks))
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [channel?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!channel) return;
     const handle = (e: KeyboardEvent) => {
@@ -22,6 +36,7 @@ const SidePanel = ({ channel, allChannels, onClose, onNavigate }: SidePanelProps
 
   if (!channel) return null;
 
+  const blocks = channel.blocks?.length ? channel.blocks : lazyBlocks;
   const neighbors = allChannels.filter((c) => channel.neighbors.includes(c.id));
 
   return (
@@ -82,14 +97,14 @@ const SidePanel = ({ channel, allChannels, onClose, onNavigate }: SidePanelProps
         </div>
       )}
 
-      {/* Block previews */}
-      {channel.blocks && channel.blocks.length > 0 && (
+      {/* Block previews — pre-baked (root) or lazily fetched (generated) */}
+      {blocks.length > 0 && (
         <div className="mb-9">
           <p className="text-[10px] uppercase tracking-[0.22em] text-white/55 mb-4">
             Contents
           </p>
           <div className="grid grid-cols-3 gap-1.5">
-            {channel.blocks.slice(0, 6).map((b) => (
+            {blocks.slice(0, 6).map((b) => (
               <a
                 key={b.id}
                 href={`https://www.are.na/block/${b.id}`}

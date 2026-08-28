@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import GalaxyView from "@/components/galaxy/GalaxyView";
+import ProfilePanel from "@/components/galaxy/ProfilePanel";
 import { getCachedLayout, putCachedLayout, dropCachedLayout } from "@/lib/layoutCache";
 import type { Channel } from "@/types/channel";
 import type { GalaxyProgress } from "@/lib/pipeline/types";
@@ -184,7 +185,22 @@ const UserGalaxy = () => {
       </>
     );
     // A freshly computed galaxy condenses into place; a cached one is instant.
-    return <GalaxyView channels={channels} chrome={chrome} reveal={!fromCache} />;
+    return (
+      <GalaxyView
+        channels={channels}
+        chrome={chrome}
+        reveal={!fromCache}
+        profilePanel={(open, onClose) => (
+          <ProfilePanel
+            open={open}
+            onClose={onClose}
+            name={`@${slug}`}
+            slug={slug}
+            about={`This galaxy maps ${slug}'s Are.na — ${channels.length} channels distributed in space by semantic proximity. Each star is a thread of thought.`}
+          />
+        )}
+      />
+    );
   }
 
   if (progress?.phase === "error") {
