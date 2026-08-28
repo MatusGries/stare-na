@@ -117,7 +117,9 @@ The v1 Pipeline Spec above + GalaxyView extraction + worker protocol + mobile ga
 ### Approach A2: retire the Python pipeline (5A)
 After A's fixture-parity test passes: run the shared TS pipeline in a bun script over `arena_raw.json`, regenerate Tereza's `channels.json`, verify visually, delete `scripts/*.py`. One implementation of the math, and the gift provably runs on the same code path as everyone else. (CC ~15min when due.)
 
-### Approach B: "The Reveal" — declared destination (milestone 2)
+### Approach B: "The Reveal" — declared destination (milestone 2) — **BUILT 2026-08-28**
+
+Shipped as B1 (live epoch condensation + narration beats, 48 recorded UMAP snapshots played back in 8s), B3 (named constellations — seeded k-means + TF-IDF, clickable strip flying to cluster anchors), and B2 (two-pass pipeline: instant titles+descriptions preview, enrichment settles the galaxy in a 2.5s transition — the v1 quality haircut now exists only during the first minute). The optional serverless share-cache remains unbuilt (no shared-link demand yet).
 Live epoch-by-epoch UMAP condensation choreographed with narration beats; post-reveal constellation summary (3 biggest clusters auto-named). **Enrichment reality check (T3):** UMAP is not incremental — "background enrichment refining the layout" is actually *recompute + animated transition between layouts* (stars fly to new positions), or it doesn't ship; the D11 spike prototypes this. Optional post-A if shared-link demand appears: thin serverless cache endpoint (the one storage exception, with write-abuse consideration).
 
 ### Approach C: "Two Galaxies" — later
