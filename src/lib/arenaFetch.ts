@@ -38,34 +38,50 @@ const getJson = async (url: string, signal?: AbortSignal): Promise<any> => {
 
 const SEARCH_PAGES = 3;
 
+/** Fold diacritics: "Slančíková" → "Slancikova". */
+const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+/** What the user typed → an Are.na-slug-shaped candidate ("Jane Doe" → "jane-doe"). */
+export const slugifyInput = (s: string) =>
+  fold(s.trim().toLowerCase())
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
 /**
- * Resolve an Are.na username (slug) to an id the proxy can use.
- * Are.na's user search tokenizes on hyphens and doesn't index surnames
- * (measured: q="tereza-slancikova" returns 3 pages of terezas, q="slancikova"
- * returns nothing) — so we scan a few search pages for an exact slug match,
- * then fall back to probing the authed channels endpoint with the raw slug
- * (slug endpoints work when the slug is CURRENT; stale slugs 404 → unknown).
+ * Resolve whatever the user typed — a slug, a display name ("Tereza
+ * Slančíková"), any casing, with or without diacritics — to an id the proxy
+ * can use. Are.na's user search tokenizes on hyphens and doesn't index
+ * surnames (measured), so we scan a few search pages and accept a user whose
+ * SLUG matches the slugified input or whose FULL NAME matches the typed text
+ * (both diacritics-folded). Fallback: probe the authed channels endpoint with
+ * the slug candidate (works when the slug is current; stale slugs 404).
  */
 export const resolveUser = async (
-  slug: string,
+  input: string,
   signal?: AbortSignal
 ): Promise<{ id: number | string; slug: string; fullName?: string }> => {
-  const q = slug.trim().toLowerCase();
+  const typed = fold(input.trim().toLowerCase());
+  const slugQ = slugifyInput(input);
+  if (!slugQ) throw new UnknownUserError(input);
+
+  // Search with the folded typed text (names work better than slugs here)
   for (let page = 1; page <= SEARCH_PAGES; page++) {
     const data = await getJson(
-      `${ARENA}/search/users?q=${encodeURIComponent(q)}&page=${page}`,
+      `${ARENA}/search/users?q=${encodeURIComponent(typed)}&page=${page}`,
       signal
     );
-    const match = (data.users ?? []).find((u: any) => (u.slug ?? "").toLowerCase() === q);
+    const match = (data.users ?? []).find((u: any) => {
+      const uSlug = (u.slug ?? "").toLowerCase();
+      const uName = fold((u.full_name ?? "").trim().toLowerCase());
+      return uSlug === slugQ || (uName && uName === typed);
+    });
     if (match) return { id: match.id, slug: match.slug, fullName: match.full_name };
     if ((data.total_pages ?? 1) <= page) break;
   }
   // Search-invisible but real slugs still resolve via the proxy probe
-  if (/^[a-z0-9_-]+$/.test(q)) {
-    const probe = await getJson(`/api/arena?kind=channels&id=${q}&page=1&per=1`, signal);
-    if (!probe.__status) return { id: q, slug: q };
-  }
-  throw new UnknownUserError(slug);
+  const probe = await getJson(`/api/arena?kind=channels&id=${slugQ}&page=1&per=1`, signal);
+  if (!probe.__status) return { id: slugQ, slug: slugQ };
+  throw new UnknownUserError(input);
 };
 
 interface FetchProgress {

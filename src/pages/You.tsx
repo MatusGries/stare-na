@@ -57,7 +57,7 @@ const You = () => {
           {state === "unknown" && (
             <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.22em",
               textTransform: "uppercase", color: "rgba(255,160,140,0.75)" }}>
-              no one here by that name
+              no one here by that name — try your profile url: are.na/username
             </span>
           )}
           {state === "failed" && (

@@ -75,6 +75,38 @@ describe("resolveUser", () => {
       .mockResolvedValueOnce(jsonResponse({ code: 404 }, 404)); // stale slug
     await expect(settle(resolveUser("nobody-here"))).rejects.toBeInstanceOf(UnknownUserError);
   });
+
+  it("resolves a display name with spaces and diacritics via full_name match", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        users: [
+          { id: 1, slug: "tereza-p", full_name: "Tereza P" },
+          { id: 284407, slug: "terezka", full_name: "Tereza Slančíková" },
+        ],
+        total_pages: 1,
+      })
+    );
+    const u = await settle(resolveUser("Tereza Slančíková"));
+    expect(u.id).toBe(284407);
+    expect(u.slug).toBe("terezka"); // navigation uses the REAL slug, not the typed name
+  });
+
+  it("slugifies spaced input for the slug comparison ('jane doe' → jane-doe)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ users: [{ id: 9, slug: "jane-doe", full_name: "J. D." }], total_pages: 1 })
+    );
+    const u = await settle(resolveUser("Jane Doe"));
+    expect(u.id).toBe(9);
+  });
+
+  it("probes the proxy with the slugified candidate when search misses", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ users: [], total_pages: 1 }))
+      .mockResolvedValueOnce(jsonResponse({ total_pages: 1, channels: [] }));
+    const u = await settle(resolveUser("Some Body"));
+    expect(String(fetchMock.mock.calls[1][0])).toContain("id=some-body");
+    expect(u.slug).toBe("some-body");
+  });
 });
 
 const page = (kind: string, ids: number[], totalPages: number, length: number) =>
