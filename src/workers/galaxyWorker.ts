@@ -8,6 +8,7 @@ import { pipeline as hfPipeline, env as hfEnv } from "@huggingface/transformers"
 // no Hugging Face CDN on the cold path. scripts/fetch-model.mjs stages them
 // into public/models/ before dev and build.
 hfEnv.allowRemoteModels = false;
+hfEnv.allowLocalModels = true; // browser builds default this to false
 hfEnv.localModelPath = "/models/";
 import { runGalaxyPipeline } from "@/lib/pipeline/orchestrate";
 import { layoutChannels } from "@/lib/pipeline/layout";
