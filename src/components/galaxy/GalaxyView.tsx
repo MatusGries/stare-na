@@ -24,9 +24,11 @@ interface GalaxyViewProps {
   chrome?: ReactNode;
   /** Panel opened by clicking the black hole. Omit to make the core click a no-op. */
   profilePanel?: (open: boolean, onClose: () => void) => ReactNode;
+  /** Condensation reveal for freshly generated galaxies (T6). */
+  reveal?: boolean;
 }
 
-const GalaxyView = ({ channels, chrome, profilePanel }: GalaxyViewProps) => {
+const GalaxyView = ({ channels, chrome, profilePanel, reveal }: GalaxyViewProps) => {
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
@@ -64,6 +66,7 @@ const GalaxyView = ({ channels, chrome, profilePanel }: GalaxyViewProps) => {
         channels={channels}
         activeChannel={activeChannel}
         searchQuery={searchQuery}
+        reveal={reveal}
         onSelectChannel={select}
         onBlackHoleClick={handleBlackHoleClick}
         resetSignal={resetSignal}

@@ -15,6 +15,8 @@ interface GalaxyProps {
   channels: Channel[];
   activeChannel: Channel | null;
   searchQuery: string;
+  /** Condensation reveal for freshly generated galaxies (T6). */
+  reveal?: boolean;
   onSelectChannel: (channel: Channel) => void;
   onBlackHoleClick: () => void;
   resetSignal: number;
@@ -25,6 +27,7 @@ const Scene = ({
   channels,
   activeChannel,
   searchQuery,
+  reveal,
   onSelectChannel,
   onBlackHoleClick,
   resetSignal,
@@ -98,6 +101,7 @@ const Scene = ({
           isFiltered={ch.title.toLowerCase().includes(query)}
           searchActive={searchActive}
           isNeighbor={activeNeighborSet.has(ch.id)}
+          reveal={reveal}
           onClick={onSelectChannel}
         />
       ))}

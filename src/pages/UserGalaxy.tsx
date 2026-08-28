@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import GalaxyView from "@/components/galaxy/GalaxyView";
+import { getCachedLayout, putCachedLayout, dropCachedLayout } from "@/lib/layoutCache";
 import type { Channel } from "@/types/channel";
 import type { GalaxyProgress } from "@/lib/pipeline/types";
 
@@ -58,31 +59,54 @@ const UserGalaxy = () => {
   const [channels, setChannels] = useState<Channel[] | null>(null);
   const [partial, setPartial] = useState<{ fetched: number; expected: number } | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [fromCache, setFromCache] = useState(false);
   const workerRef = useRef<Worker | null>(null);
 
   const reserved = RESERVED.has(slug);
 
   useEffect(() => {
     if (gated || reserved || !slug) return;
-    // Worker chunk carries transformers.js + umap-js — loaded here only,
-    // never on the root route (eng-review decision 3A).
-    const worker = new Worker(new URL("../workers/galaxyWorker.ts", import.meta.url), {
-      type: "module",
-    });
-    workerRef.current = worker;
-    worker.onmessage = (e: MessageEvent<GalaxyProgress>) => {
-      const p = e.data;
-      if (p.phase === "done") {
-        setChannels(p.channels);
-        setPartial(p.partial ?? null);
-      } else {
-        setProgress(p);
+    let cancelled = false;
+    let worker: Worker | null = null;
+
+    (async () => {
+      // Layout cache (T6/7A): a returning visitor renders instantly.
+      // attempt > 0 means an explicit retry/regenerate — always recompute.
+      if (attempt === 0) {
+        const cached = await getCachedLayout(slug);
+        if (cancelled) return;
+        if (cached) {
+          setFromCache(true);
+          setChannels(cached);
+          return;
+        }
       }
-    };
-    worker.postMessage({ type: "start", username: slug });
+
+      // Worker chunk carries transformers.js + umap-js — loaded here only,
+      // never on the root route (eng-review decision 3A).
+      worker = new Worker(new URL("../workers/galaxyWorker.ts", import.meta.url), {
+        type: "module",
+      });
+      workerRef.current = worker;
+      worker.onmessage = (e: MessageEvent<GalaxyProgress>) => {
+        const p = e.data;
+        if (p.phase === "done") {
+          setFromCache(false);
+          setChannels(p.channels);
+          setPartial(p.partial ?? null);
+          // Cache only complete galaxies — a partial one should retry, not stick.
+          if (!p.partial) void putCachedLayout(slug, p.channels);
+        } else {
+          setProgress(p);
+        }
+      };
+      worker.postMessage({ type: "start", username: slug });
+    })();
+
     return () => {
-      worker.postMessage({ type: "cancel" });
-      worker.terminate();
+      cancelled = true;
+      worker?.postMessage({ type: "cancel" });
+      worker?.terminate();
       workerRef.current = null;
     };
   }, [slug, gated, reserved, attempt]);
@@ -135,6 +159,22 @@ const UserGalaxy = () => {
             </button>
           </div>
         )}
+        {fromCache && !partial && (
+          <div style={{ position: "absolute", top: 20, right: 24, zIndex: 20,
+            fontFamily: mono, fontSize: 10, letterSpacing: "0.18em",
+            textTransform: "uppercase", color: "rgba(255,255,255,0.35)" }}>
+            from memory —{" "}
+            <button
+              onClick={() => {
+                void dropCachedLayout(slug);
+                setChannels(null); setProgress(null); setFromCache(false);
+                setAttempt((a) => a + 1);
+              }}
+              style={{ all: "unset", cursor: "pointer", textDecoration: "underline" }}>
+              regenerate
+            </button>
+          </div>
+        )}
         <p style={{ position: "absolute", bottom: 20, left: 24, zIndex: 20,
           fontFamily: mono, fontSize: 10, letterSpacing: "0.28em",
           textTransform: "uppercase", color: "rgba(255,255,255,0.30)",
@@ -143,7 +183,8 @@ const UserGalaxy = () => {
         </p>
       </>
     );
-    return <GalaxyView channels={channels} chrome={chrome} />;
+    // A freshly computed galaxy condenses into place; a cached one is instant.
+    return <GalaxyView channels={channels} chrome={chrome} reveal={!fromCache} />;
   }
 
   if (progress?.phase === "error") {

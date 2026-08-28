@@ -11,8 +11,32 @@ interface StarProps {
   isFiltered: boolean;
   searchActive: boolean;
   isNeighbor: boolean;
+  /** Condensation reveal (generated galaxies): star flies in from a seeded
+   *  scatter position over ~4s. Absent/false on the root route — zero change. */
+  reveal?: boolean;
   onClick: (channel: Channel) => void;
 }
+
+const REVEAL_SECONDS = 4;
+const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+
+// Deterministic per-channel scatter start: a point on a far shell, plus a
+// small per-star delay so the condensation reads organic, not synchronized.
+const revealStart = (id: string, baseY: number) => {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619);
+  const u = ((h >>> 0) % 10000) / 10000;
+  const v = ((Math.imul(h, 48271) >>> 0) % 10000) / 10000;
+  const theta = u * Math.PI * 2;
+  const phi = Math.acos(2 * v - 1);
+  const r = 26 + u * 10;
+  return {
+    x: Math.sin(phi) * Math.cos(theta) * r,
+    y: baseY + Math.cos(phi) * r * 0.5,
+    z: Math.sin(phi) * Math.sin(theta) * r,
+    delay: v * 0.8,
+  };
+};
 
 // Shared radial glow texture — photographic PSF: very tight bright core, near-invisible halo
 const glowTex = (() => {
@@ -47,6 +71,7 @@ const Star = ({
   isFiltered,
   searchActive,
   isNeighbor,
+  reveal,
   onClick,
 }: StarProps) => {
   const groupRef = useRef<THREE.Group>(null);
@@ -54,6 +79,12 @@ const Star = ({
   const [hovered, setHovered] = useState(false);
 
   const baseY = channel.y * COORD_SCALE;
+  // Reveal clock: negative = per-star delay still elapsing; >=1 = settled.
+  const revealT = useRef(reveal ? Number.NEGATIVE_INFINITY : 1);
+  const revealFrom = useMemo(
+    () => (reveal ? revealStart(channel.id, baseY) : null),
+    [reveal, channel.id, baseY]
+  );
   // Steep power curve: most stars are barely-there dust; rare anchors have real presence
   const t = Math.max(0, Math.min(1, (channel.size - 1.1) / 0.9));
   const baseScale = 0.072 + Math.pow(t, 1.6) * 0.52;
@@ -78,9 +109,25 @@ const Star = ({
     [channel.id]
   );
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, delta) => {
     if (!groupRef.current || !matRef.current) return;
     const t = clock.getElapsedTime();
+
+    // Condensation reveal: fly in from the seeded scatter, then hand over to
+    // the normal drift. Delta-based (frame-rate independent — see
+    // CameraController for why that matters).
+    if (revealT.current < 1 && revealFrom) {
+      if (revealT.current === Number.NEGATIVE_INFINITY) revealT.current = -revealFrom.delay / REVEAL_SECONDS;
+      revealT.current += delta / REVEAL_SECONDS;
+      const e = easeOutCubic(Math.min(1, Math.max(0, revealT.current)));
+      const tx = channel.x * COORD_SCALE;
+      const tz = channel.z * COORD_SCALE;
+      groupRef.current.position.x = revealFrom.x + (tx - revealFrom.x) * e;
+      groupRef.current.position.z = revealFrom.z + (tz - revealFrom.z) * e;
+      groupRef.current.position.y = revealFrom.y + (baseY - revealFrom.y) * e;
+      matRef.current.opacity = Math.min(1, 0.15 + e);
+      return; // drift/scale/color take over once settled
+    }
 
     // Imperceptible vertical drift — adds life without noise
     groupRef.current.position.y =
@@ -111,7 +158,11 @@ const Star = ({
   return (
     <group
       ref={groupRef}
-      position={[channel.x * COORD_SCALE, baseY, channel.z * COORD_SCALE]}
+      position={
+        revealFrom
+          ? [revealFrom.x, revealFrom.y, revealFrom.z]
+          : [channel.x * COORD_SCALE, baseY, channel.z * COORD_SCALE]
+      }
       scale={baseScale}
       onDoubleClick={(e) => e.stopPropagation()}
       onClick={(e) => {
