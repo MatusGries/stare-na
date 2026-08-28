@@ -31,3 +31,4 @@ scripts/.arena_token
 scripts/channels_with_embeddings.json
 scripts/.arena-token
 scripts/.arena_token
+test-results/
