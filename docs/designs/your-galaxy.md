@@ -251,7 +251,7 @@ Synthesized from this review's findings. Run with Claude Code; checkbox as you s
   - Surfaced by: Architecture finding 3 (D4/3A) + Tension 4.2 (D12)
   - Files: public/models/*, vite config/imports
   - Verify: `bunx vite build` — root chunk contains no onnx/transformers code
-- [ ] **T9 (P3, human: ~1h / CC: ~15min)** — A2 — bun script regenerates Tereza's channels.json via shared TS pipeline; retire scripts/*.py
+- [x] **T9 (P3, human: ~1h / CC: ~15min)** — A2 — bun script regenerates Tereza's channels.json via shared TS pipeline; retire scripts/*.py
   - Surfaced by: Code Quality finding 5 (D6/5A) — dual-pipeline DRY
   - Files: scripts/generate.bun.ts, public/data/channels.json, delete scripts/*.py
   - Verify: visual parity of root galaxy + golden fixture still green
