@@ -65,7 +65,7 @@ self.onmessage = (e: MessageEvent<GalaxyWorkerRequest>) => {
         enrichChannels,
         loadModel,
         embedTexts,
-        layoutChannels: (inputs) => layoutChannelsAnimated(inputs),
+        layoutChannels: (inputs, opts) => layoutChannelsAnimated(inputs, undefined, opts?.frames ? 48 : 0),
         isUnknownUser: (err) => err instanceof UnknownUserError,
         isNoChannels: (err) => err instanceof NoChannelsError,
       },

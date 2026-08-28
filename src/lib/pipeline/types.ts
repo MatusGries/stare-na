@@ -31,6 +31,13 @@ export type GalaxyProgress =
   | { phase: "embedding"; done: number; total: number }
   | { phase: "layout" }
   | {
+      /** B2 first pass: a fast titles+descriptions galaxy, explorable
+       *  immediately; enrichment continues in the background. */
+      phase: "preview";
+      channels: import("@/types/channel").Channel[];
+      epochFrames?: number[][][];
+    }
+  | {
       phase: "done";
       channels: import("@/types/channel").Channel[];
       partial?: { fetched: number; expected: number };

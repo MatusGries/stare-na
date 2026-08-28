@@ -28,6 +28,7 @@ interface GalaxyViewProps {
   reveal?: boolean;
   /** Milestone-B live condensation frames + completion callback. */
   epochFrames?: number[][][];
+  epochDuration?: number;
   onCondensed?: () => void;
   /** Milestone-B3: named constellations — rendered as a clickable strip that
    *  flies to each cluster's anchor channel. */
@@ -40,6 +41,7 @@ const GalaxyView = ({
   profilePanel,
   reveal,
   epochFrames,
+  epochDuration,
   onCondensed,
   constellations,
 }: GalaxyViewProps) => {
@@ -82,6 +84,7 @@ const GalaxyView = ({
         searchQuery={searchQuery}
         reveal={reveal}
         epochFrames={epochFrames}
+        epochDuration={epochDuration}
         onCondensed={onCondensed}
         onSelectChannel={select}
         onBlackHoleClick={handleBlackHoleClick}

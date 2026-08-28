@@ -40,8 +40,8 @@ const statusText = (p: GalaxyProgress | null, username: string): string => {
 // Narration beats over the live condensation (milestone B). Cycles through
 // the lines while the galaxy forms; unmounted the moment it settles.
 const NARRATION_BEAT_MS = 2700;
-const Narration = ({ count }: { count: number }) => {
-  const lines = [
+const Narration = ({ count, lines: linesProp }: { count: number; lines?: string[] }) => {
+  const lines = linesProp ?? [
     `${count} channels, gathered`,
     "pulling similar thoughts together…",
     "finding the shape of a mind…",
@@ -94,8 +94,10 @@ const UserGalaxy = () => {
   const [attempt, setAttempt] = useState(0);
   const [fromCache, setFromCache] = useState(false);
   const [epochFrames, setEpochFrames] = useState<number[][][] | null>(null);
-  const [condensing, setCondensing] = useState(false);
+  /** B2 animation stage: condensation (preview), enrichment settle, or idle. */
+  const [animPhase, setAnimPhase] = useState<"condense" | "settle" | null>(null);
   const workerRef = useRef<Worker | null>(null);
+  const condensing = animPhase !== null;
 
   const reserved = RESERVED.has(slug);
 
@@ -132,12 +134,21 @@ const UserGalaxy = () => {
       workerRef.current = worker;
       worker.onmessage = (e: MessageEvent<GalaxyProgress>) => {
         const p = e.data;
-        if (p.phase === "done") {
+        if (p.phase === "preview") {
+          // B2 pass 1: explorable immediately; enrichment continues behind it.
           setFromCache(false);
           setEpochFrames(p.epochFrames ?? null);
-          setCondensing(!!p.epochFrames?.length);
+          setAnimPhase(p.epochFrames?.length ? "condense" : null);
+          setChannels(p.channels);
+          setProgress(null); // pass-2 status resumes with the first enriching message
+        } else if (p.phase === "done") {
+          setFromCache(false);
+          const settling = !!p.epochFrames?.length;
+          setEpochFrames(p.epochFrames ?? null);
+          setAnimPhase(settling ? "settle" : null);
           setChannels(p.channels);
           setPartial(p.partial ?? null);
+          setProgress(null);
           // Cache only complete galaxies — a partial one should retry, not stick.
           if (!p.partial) void putCachedLayout(slug, p.channels);
         } else {
@@ -197,7 +208,7 @@ const UserGalaxy = () => {
             fontFamily: mono, fontSize: 10, letterSpacing: "0.18em",
             textTransform: "uppercase", color: "rgba(255,200,150,0.7)" }}>
             rendered {partial.fetched} of ~{partial.expected} —{" "}
-            <button onClick={() => { setChannels(null); setProgress(null); setEpochFrames(null); setCondensing(false); setAttempt((a) => a + 1); }}
+            <button onClick={() => { setChannels(null); setProgress(null); setEpochFrames(null); setAnimPhase(null); setAttempt((a) => a + 1); }}
               style={{ all: "unset", cursor: "pointer", textDecoration: "underline" }}>
               retry
             </button>
@@ -225,7 +236,21 @@ const UserGalaxy = () => {
           userSelect: "none", pointerEvents: "none" }}>
           stare.na · {slug}
         </p>
-        {condensing && <Narration count={channels.length} />}
+        {animPhase === "condense" && <Narration count={channels.length} />}
+        {animPhase === "settle" && (
+          <Narration count={channels.length} lines={["the galaxy settles…"]} />
+        )}
+        {/* B2: enrichment keeps working behind the explorable preview */}
+        {animPhase === null && progress && progress.phase !== "done" && (
+          <p style={{ position: "absolute", bottom: 20, right: 24, zIndex: 20,
+            fontFamily: mono, fontSize: 9, letterSpacing: "0.22em",
+            textTransform: "uppercase", color: "rgba(255,255,255,0.30)",
+            pointerEvents: "none" }}>
+            {progress.phase === "enriching"
+              ? `reading between the lines — ${progress.done}/${progress.total}…`
+              : "weighing new thoughts…"}
+          </p>
+        )}
       </>
     );
     // A freshly computed galaxy condenses into place; a cached one is instant.
@@ -235,7 +260,8 @@ const UserGalaxy = () => {
         chrome={chrome}
         reveal={!fromCache}
         epochFrames={epochFrames ?? undefined}
-        onCondensed={() => setCondensing(false)}
+        epochDuration={animPhase === "settle" ? 2.5 : undefined}
+        onCondensed={() => setAnimPhase(null)}
         constellations={constellations}
         profilePanel={(open, onClose) => (
           <ProfilePanel

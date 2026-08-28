@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
@@ -22,6 +22,8 @@ interface GalaxyProps {
    *  aligned to `channels` order). When present, playback replaces the T6
    *  reveal and drives star positions until it settles. */
   epochFrames?: number[][][];
+  /** Playback length: ~8s for the condensation, ~2.5s for the B2 settle. */
+  epochDuration?: number;
   onCondensed?: () => void;
   onSelectChannel: (channel: Channel) => void;
   onBlackHoleClick: () => void;
@@ -38,11 +40,13 @@ const EpochDriver = ({
   frames,
   channels,
   groups,
+  duration = CONDENSE_SECONDS,
   onDone,
 }: {
   frames: number[][][];
   channels: Channel[];
   groups: Map<string, THREE.Group>;
+  duration?: number;
   onDone: () => void;
 }) => {
   const t = useRef(0);
@@ -54,7 +58,7 @@ const EpochDriver = ({
       onDone();
       return;
     }
-    t.current = Math.min(1, t.current + delta / CONDENSE_SECONDS);
+    t.current = Math.min(1, t.current + delta / duration);
     // ease-out tail: the settle should feel physical, not clipped
     const e = 1 - Math.pow(1 - t.current, 2);
     const pos = e * (frames.length - 1);
@@ -85,6 +89,7 @@ const Scene = ({
   searchQuery,
   reveal,
   epochFrames,
+  epochDuration,
   onCondensed,
   onSelectChannel,
   onBlackHoleClick,
@@ -96,6 +101,11 @@ const Scene = ({
 
   const starGroups = useMemo(() => new Map<string, THREE.Group>(), []);
   const [condensed, setCondensed] = useState(!epochFrames?.length);
+  // A NEW frames array (B2: preview condensation, then the enrichment settle)
+  // restarts playback; same-identity re-renders don't.
+  useEffect(() => {
+    setCondensed(!epochFrames?.length);
+  }, [epochFrames]);
   const registerGroup = useCallback(
     (id: string, group: THREE.Group | null) => {
       if (group) starGroups.set(id, group);
@@ -183,9 +193,11 @@ const Scene = ({
 
       {driving && epochFrames && (
         <EpochDriver
+          key={epochFrames.length + "-" + channels.length}
           frames={epochFrames}
           channels={channels}
           groups={starGroups}
+          duration={epochDuration}
           onDone={handleCondensed}
         />
       )}
