@@ -2,7 +2,13 @@
 // All heavy lifting (fetch, MiniLM embedding, UMAP) happens here, off the
 // main thread. The page talks the GalaxyProgress protocol (types.ts) and
 // terminates this worker on unmount (eng-review decision 2A).
-import { pipeline as hfPipeline } from "@huggingface/transformers";
+import { pipeline as hfPipeline, env as hfEnv } from "@huggingface/transformers";
+
+// Self-hosted weights (eng review D12.2): served from our own deployment,
+// no Hugging Face CDN on the cold path. scripts/fetch-model.mjs stages them
+// into public/models/ before dev and build.
+hfEnv.allowRemoteModels = false;
+hfEnv.localModelPath = "/models/";
 import { runGalaxyPipeline } from "@/lib/pipeline/orchestrate";
 import { layoutChannels } from "@/lib/pipeline/layout";
 import { DIM } from "@/lib/pipeline/embedText";
