@@ -26,7 +26,7 @@ export interface PipelineDeps {
   ) => Promise<Float32Array[]>;
   layoutChannels: (
     inputs: { channel: RawChannel; embedding: Float32Array | null }[]
-  ) => Channel[];
+  ) => { channels: Channel[]; frames?: number[][][] };
   isUnknownUser: (e: unknown) => boolean;
   isNoChannels: (e: unknown) => boolean;
 }
@@ -110,7 +110,12 @@ export const runGalaxyPipeline = async (
     const out = deps.layoutChannels(inputs);
     if (cancelled()) return bail();
 
-    emit({ phase: "done", channels: out, partial });
+    emit({
+      phase: "done",
+      channels: out.channels,
+      partial,
+      epochFrames: out.frames?.length ? out.frames : undefined,
+    });
   } catch (e) {
     if (cancelled()) return bail();
     emit({ phase: "error", kind: "fetch-failed", message: String(e) });

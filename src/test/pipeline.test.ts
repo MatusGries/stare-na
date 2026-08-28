@@ -10,6 +10,7 @@ import {
 } from "@/lib/pipeline/embedText";
 import {
   layoutChannels,
+  layoutChannelsAnimated,
   computeSize,
   computeEmissive,
   scaleAxis,
@@ -132,6 +133,30 @@ describe("layoutChannels", () => {
     const a = layoutChannels(mkInputs(MIN_UMAP_CHANNELS + 5));
     const b = layoutChannels(mkInputs(MIN_UMAP_CHANNELS + 5));
     expect(JSON.stringify(a)).toEqual(JSON.stringify(b));
+  });
+
+  it("animated layout settles on EXACTLY the plain layout (step loop ≡ fit)", () => {
+    const plain = layoutChannels(mkInputs(MIN_UMAP_CHANNELS + 5));
+    const anim = layoutChannelsAnimated(mkInputs(MIN_UMAP_CHANNELS + 5), undefined, 12);
+    expect(JSON.stringify(anim.channels)).toEqual(JSON.stringify(plain));
+  });
+
+  it("records frames aligned to channel order, last frame = final positions", () => {
+    const n = MIN_UMAP_CHANNELS + 5;
+    const { channels, frames } = layoutChannelsAnimated(mkInputs(n), undefined, 12);
+    expect(frames.length).toBeGreaterThanOrEqual(10);
+    for (const f of frames) expect(f.length).toBe(channels.length);
+    const last = frames[frames.length - 1];
+    channels.forEach((c, i) => {
+      expect(last[i][0]).toBeCloseTo(c.x, 3);
+      expect(last[i][1]).toBeCloseTo(c.y, 3);
+      expect(last[i][2]).toBeCloseTo(c.z, 3);
+    });
+  });
+
+  it("fallback path (<30 channels) records no frames", () => {
+    const { frames } = layoutChannelsAnimated(mkInputs(5), undefined, 12);
+    expect(frames.length).toBe(0);
   });
 
   it("UMAP path: coords span [-8, 8], schema is complete", () => {

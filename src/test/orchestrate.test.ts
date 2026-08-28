@@ -29,14 +29,13 @@ const happyDeps = (overrides: Partial<PipelineDeps> = {}): PipelineDeps => ({
     onProgress?.(texts.length, texts.length);
     return texts.map(() => unit());
   },
-  layoutChannels: (inputs) =>
-    inputs.map((i, idx) => ({
+  layoutChannels: (inputs) => ({ channels: inputs.map((i, idx) => ({
       id: String(i.channel.id),
       slug: String(i.channel.id),
       title: i.channel.title ?? "",
       description: "",
       x: idx, y: 0, z: 0, size: 1, color: "#ffffff", neighbors: [],
-    })),
+    })) }),
   isUnknownUser: (e) => e instanceof Error && e.message === "unknown",
   isNoChannels: (e) => e instanceof Error && e.message === "empty",
   ...overrides,

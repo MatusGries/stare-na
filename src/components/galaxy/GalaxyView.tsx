@@ -26,9 +26,12 @@ interface GalaxyViewProps {
   profilePanel?: (open: boolean, onClose: () => void) => ReactNode;
   /** Condensation reveal for freshly generated galaxies (T6). */
   reveal?: boolean;
+  /** Milestone-B live condensation frames + completion callback. */
+  epochFrames?: number[][][];
+  onCondensed?: () => void;
 }
 
-const GalaxyView = ({ channels, chrome, profilePanel, reveal }: GalaxyViewProps) => {
+const GalaxyView = ({ channels, chrome, profilePanel, reveal, epochFrames, onCondensed }: GalaxyViewProps) => {
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
@@ -67,6 +70,8 @@ const GalaxyView = ({ channels, chrome, profilePanel, reveal }: GalaxyViewProps)
         activeChannel={activeChannel}
         searchQuery={searchQuery}
         reveal={reveal}
+        epochFrames={epochFrames}
+        onCondensed={onCondensed}
         onSelectChannel={select}
         onBlackHoleClick={handleBlackHoleClick}
         resetSignal={resetSignal}

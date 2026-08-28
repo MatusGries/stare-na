@@ -36,6 +36,37 @@ const statusText = (p: GalaxyProgress | null, username: string): string => {
   }
 };
 
+// Narration beats over the live condensation (milestone B). Cycles through
+// the lines while the galaxy forms; unmounted the moment it settles.
+const NARRATION_BEAT_MS = 2700;
+const Narration = ({ count }: { count: number }) => {
+  const lines = [
+    `${count} channels, gathered`,
+    "pulling similar thoughts together…",
+    "finding the shape of a mind…",
+  ];
+  const [beat, setBeat] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setBeat((b) => Math.min(b + 1, lines.length - 1)), NARRATION_BEAT_MS);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <p
+      key={beat} // re-trigger the fade on each beat
+      style={{
+        position: "absolute", bottom: 56, left: 0, right: 0, zIndex: 20,
+        textAlign: "center", fontFamily: mono, fontSize: 11,
+        letterSpacing: "0.3em", textTransform: "uppercase",
+        color: "rgba(255,255,255,0.55)", pointerEvents: "none",
+        animation: "fadeUp 1.4s ease both",
+      }}
+    >
+      {lines[beat]}
+    </p>
+  );
+};
+
 const Shell = ({ children }: { children: React.ReactNode }) => (
   <div
     className="relative h-screen w-screen overflow-hidden flex flex-col items-center justify-center gap-6"
@@ -61,6 +92,8 @@ const UserGalaxy = () => {
   const [partial, setPartial] = useState<{ fetched: number; expected: number } | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [fromCache, setFromCache] = useState(false);
+  const [epochFrames, setEpochFrames] = useState<number[][][] | null>(null);
+  const [condensing, setCondensing] = useState(false);
   const workerRef = useRef<Worker | null>(null);
 
   const reserved = RESERVED.has(slug);
@@ -93,6 +126,8 @@ const UserGalaxy = () => {
         const p = e.data;
         if (p.phase === "done") {
           setFromCache(false);
+          setEpochFrames(p.epochFrames ?? null);
+          setCondensing(!!p.epochFrames?.length);
           setChannels(p.channels);
           setPartial(p.partial ?? null);
           // Cache only complete galaxies — a partial one should retry, not stick.
@@ -154,7 +189,7 @@ const UserGalaxy = () => {
             fontFamily: mono, fontSize: 10, letterSpacing: "0.18em",
             textTransform: "uppercase", color: "rgba(255,200,150,0.7)" }}>
             rendered {partial.fetched} of ~{partial.expected} —{" "}
-            <button onClick={() => { setChannels(null); setProgress(null); setAttempt((a) => a + 1); }}
+            <button onClick={() => { setChannels(null); setProgress(null); setEpochFrames(null); setCondensing(false); setAttempt((a) => a + 1); }}
               style={{ all: "unset", cursor: "pointer", textDecoration: "underline" }}>
               retry
             </button>
@@ -182,6 +217,7 @@ const UserGalaxy = () => {
           userSelect: "none", pointerEvents: "none" }}>
           stare.na · {slug}
         </p>
+        {condensing && <Narration count={channels.length} />}
       </>
     );
     // A freshly computed galaxy condenses into place; a cached one is instant.
@@ -190,6 +226,8 @@ const UserGalaxy = () => {
         channels={channels}
         chrome={chrome}
         reveal={!fromCache}
+        epochFrames={epochFrames ?? undefined}
+        onCondensed={() => setCondensing(false)}
         profilePanel={(open, onClose) => (
           <ProfilePanel
             open={open}

@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo } from "react";
+import { useRef, useState, useMemo, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
@@ -14,6 +14,11 @@ interface StarProps {
   /** Condensation reveal (generated galaxies): star flies in from a seeded
    *  scatter position over ~4s. Absent/false on the root route — zero change. */
   reveal?: boolean;
+  /** Milestone-B epoch playback: an external driver owns this star's position;
+   *  skip all internal position writes (reveal, drift) until it finishes. */
+  positionDriven?: boolean;
+  /** Registry hook for the epoch driver (called with null on unmount). */
+  registerGroup?: (id: string, group: import("three").Group | null) => void;
   onClick: (channel: Channel) => void;
 }
 
@@ -72,11 +77,20 @@ const Star = ({
   searchActive,
   isNeighbor,
   reveal,
+  positionDriven,
+  registerGroup,
   onClick,
 }: StarProps) => {
   const groupRef = useRef<THREE.Group>(null);
   const matRef = useRef<THREE.SpriteMaterial>(null);
   const [hovered, setHovered] = useState(false);
+
+  useEffect(() => {
+    if (!registerGroup) return;
+    registerGroup(channel.id, groupRef.current);
+    return () => registerGroup(channel.id, null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channel.id, registerGroup]);
 
   const baseY = channel.y * COORD_SCALE;
   // Reveal clock: negative = per-star delay still elapsing; >=1 = settled.
@@ -112,6 +126,14 @@ const Star = ({
   useFrame(({ clock }, delta) => {
     if (!groupRef.current || !matRef.current) return;
     const t = clock.getElapsedTime();
+
+    if (positionDriven) {
+      // Epoch driver owns position; keep scale/opacity/color behavior only.
+      const s0 = groupRef.current.scale.x;
+      groupRef.current.scale.setScalar(s0 + (baseScale - s0) * 0.1);
+      matRef.current.opacity += (1.0 - matRef.current.opacity) * 0.12;
+      return;
+    }
 
     // Condensation reveal: fly in from the seeded scatter, then hand over to
     // the normal drift. Delta-based (frame-rate independent — see

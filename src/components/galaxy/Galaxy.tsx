@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Stars, Line } from "@react-three/drei";
@@ -17,17 +18,74 @@ interface GalaxyProps {
   searchQuery: string;
   /** Condensation reveal for freshly generated galaxies (T6). */
   reveal?: boolean;
+  /** Milestone-B live condensation: UMAP optimization snapshots ([-8,8]³,
+   *  aligned to `channels` order). When present, playback replaces the T6
+   *  reveal and drives star positions until it settles. */
+  epochFrames?: number[][][];
+  onCondensed?: () => void;
   onSelectChannel: (channel: Channel) => void;
   onBlackHoleClick: () => void;
   resetSignal: number;
   onOverviewRequest: () => void;
 }
 
+const CONDENSE_SECONDS = 8;
+
+// Drives star group positions through the recorded UMAP epochs, then hands
+// control back to the stars (drift). Imperative on purpose: zero per-frame
+// React work for 300+ stars.
+const EpochDriver = ({
+  frames,
+  channels,
+  groups,
+  onDone,
+}: {
+  frames: number[][][];
+  channels: Channel[];
+  groups: Map<string, THREE.Group>;
+  onDone: () => void;
+}) => {
+  const t = useRef(0);
+  const done = useRef(false);
+  useFrame((_, delta) => {
+    if (done.current) return;
+    if (frames.length < 2) {
+      done.current = true;
+      onDone();
+      return;
+    }
+    t.current = Math.min(1, t.current + delta / CONDENSE_SECONDS);
+    // ease-out tail: the settle should feel physical, not clipped
+    const e = 1 - Math.pow(1 - t.current, 2);
+    const pos = e * (frames.length - 1);
+    const i = Math.min(frames.length - 2, Math.floor(pos));
+    const frac = pos - i;
+    const a = frames[i];
+    const b = frames[i + 1];
+    for (let idx = 0; idx < channels.length; idx++) {
+      const g = groups.get(channels[idx].id);
+      if (!g || !a[idx] || !b[idx]) continue;
+      g.position.set(
+        (a[idx][0] + (b[idx][0] - a[idx][0]) * frac) * COORD_SCALE,
+        (a[idx][1] + (b[idx][1] - a[idx][1]) * frac) * COORD_SCALE,
+        (a[idx][2] + (b[idx][2] - a[idx][2]) * frac) * COORD_SCALE
+      );
+    }
+    if (t.current >= 1) {
+      done.current = true;
+      onDone();
+    }
+  });
+  return null;
+};
+
 const Scene = ({
   channels,
   activeChannel,
   searchQuery,
   reveal,
+  epochFrames,
+  onCondensed,
   onSelectChannel,
   onBlackHoleClick,
   resetSignal,
@@ -35,6 +93,21 @@ const Scene = ({
 }: GalaxyProps) => {
   const searchActive = searchQuery.length > 0;
   const query = searchQuery.toLowerCase();
+
+  const starGroups = useMemo(() => new Map<string, THREE.Group>(), []);
+  const [condensed, setCondensed] = useState(!epochFrames?.length);
+  const registerGroup = useCallback(
+    (id: string, group: THREE.Group | null) => {
+      if (group) starGroups.set(id, group);
+      else starGroups.delete(id);
+    },
+    [starGroups]
+  );
+  const handleCondensed = useCallback(() => {
+    setCondensed(true);
+    onCondensed?.();
+  }, [onCondensed]);
+  const driving = !condensed && !!epochFrames?.length;
 
   const cameraTarget: [number, number, number] | null = activeChannel
     ? [activeChannel.x * COORD_SCALE, activeChannel.y * COORD_SCALE, activeChannel.z * COORD_SCALE]
@@ -101,10 +174,21 @@ const Scene = ({
           isFiltered={ch.title.toLowerCase().includes(query)}
           searchActive={searchActive}
           isNeighbor={activeNeighborSet.has(ch.id)}
-          reveal={reveal}
+          reveal={reveal && !epochFrames?.length}
+          positionDriven={driving}
+          registerGroup={epochFrames?.length ? registerGroup : undefined}
           onClick={onSelectChannel}
         />
       ))}
+
+      {driving && epochFrames && (
+        <EpochDriver
+          frames={epochFrames}
+          channels={channels}
+          groups={starGroups}
+          onDone={handleCondensed}
+        />
+      )}
 
       <CameraController target={cameraTarget} resetSignal={resetSignal} />
 

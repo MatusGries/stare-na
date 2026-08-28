@@ -11,7 +11,7 @@ hfEnv.allowRemoteModels = false;
 hfEnv.allowLocalModels = true; // browser builds default this to false
 hfEnv.localModelPath = "/models/";
 import { runGalaxyPipeline } from "@/lib/pipeline/orchestrate";
-import { layoutChannels } from "@/lib/pipeline/layout";
+import { layoutChannelsAnimated } from "@/lib/pipeline/layout";
 import { DIM } from "@/lib/pipeline/embedText";
 import {
   resolveUser,
@@ -65,7 +65,7 @@ self.onmessage = (e: MessageEvent<GalaxyWorkerRequest>) => {
         enrichChannels,
         loadModel,
         embedTexts,
-        layoutChannels: (inputs) => layoutChannels(inputs),
+        layoutChannels: (inputs) => layoutChannelsAnimated(inputs),
         isUnknownUser: (err) => err instanceof UnknownUserError,
         isNoChannels: (err) => err instanceof NoChannelsError,
       },

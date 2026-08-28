@@ -91,8 +91,36 @@ export interface LayoutInput {
   embedding: Float32Array | null;
 }
 
+/** Per-frame normalized snapshot: pure shape change at constant scale. */
+const scaleFrame = (raw: number[][]): number[][] => {
+  const xs = scaleAxis(raw.map((p) => p[0]));
+  const ys = scaleAxis(raw.map((p) => p[1]));
+  const zs = scaleAxis(raw.map((p) => p[2]));
+  return raw.map((_, i) => [xs[i], ys[i], zs[i]]);
+};
+
 /** Full layout + post-processing: RawChannel[] + embeddings → Channel[]. */
-export const layoutChannels = (inputs: LayoutInput[], seed = UMAP_SEED): Channel[] => {
+export const layoutChannels = (inputs: LayoutInput[], seed = UMAP_SEED): Channel[] =>
+  layoutChannelsAnimated(inputs, seed, 0).channels;
+
+export interface AnimatedLayout {
+  channels: Channel[];
+  /** UMAP optimization snapshots (positions aligned to `channels` order, in
+   *  [-8,8]³ layout space). Empty when frameCount=0 or the fallback ran. */
+  frames: number[][][];
+}
+
+/**
+ * Same layout as layoutChannels, but records `frameCount` evenly spaced
+ * snapshots of the UMAP optimization — the raw material of the milestone-B
+ * live condensation. step()-driven optimization with the same seeded RNG is
+ * identical to fit() (unit-tested), so animated and plain layouts agree.
+ */
+export const layoutChannelsAnimated = (
+  inputs: LayoutInput[],
+  seed = UMAP_SEED,
+  frameCount = 48
+): AnimatedLayout => {
   const embedded = inputs.filter((i) => i.embedding !== null);
   const unembedded = inputs.filter((i) => i.embedding === null);
 
@@ -100,6 +128,7 @@ export const layoutChannels = (inputs: LayoutInput[], seed = UMAP_SEED): Channel
   const ids = embedded.map((i) => String(i.channel.id));
 
   let coords: number[][];
+  const rawFrames: number[][][] = [];
   if (embedded.length >= MIN_UMAP_CHANNELS) {
     const umap = new UMAP({
       nComponents: 3,
@@ -108,11 +137,16 @@ export const layoutChannels = (inputs: LayoutInput[], seed = UMAP_SEED): Channel
       distanceFn: cosineDist,
       random: mulberry32(seed),
     });
-    const raw = umap.fit(embs.map((e) => [...e]));
-    const xs = scaleAxis(raw.map((p) => p[0]));
-    const ys = scaleAxis(raw.map((p) => p[1]));
-    const zs = scaleAxis(raw.map((p) => p[2]));
-    coords = raw.map((_, i) => [xs[i], ys[i], zs[i]]);
+    const data = embs.map((e) => [...e]);
+    const nEpochs = umap.initializeFit(data);
+    const every = frameCount > 0 ? Math.max(1, Math.floor(nEpochs / frameCount)) : Infinity;
+    for (let epoch = 0; epoch < nEpochs; epoch++) {
+      umap.step();
+      if (frameCount > 0 && (epoch % every === 0 || epoch === nEpochs - 1)) {
+        rawFrames.push(scaleFrame(umap.getEmbedding().map((p) => [...p])));
+      }
+    }
+    coords = scaleFrame(umap.getEmbedding());
   } else {
     coords = fibonacciSphere(embedded.length);
   }
@@ -150,5 +184,10 @@ export const layoutChannels = (inputs: LayoutInput[], seed = UMAP_SEED): Channel
     out.push(ch);
   });
 
-  return out;
+  // Frames aligned to the OUTPUT order: animated embedded positions, then the
+  // static shell positions appended (degenerates don't participate in UMAP).
+  const shellTail = unembedded.map((_, i) => shell[i]);
+  const frames = rawFrames.map((f) => [...f, ...shellTail]);
+
+  return { channels: out, frames };
 };

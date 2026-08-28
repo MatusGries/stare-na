@@ -30,7 +30,16 @@ export type GalaxyProgress =
   | { phase: "loading-model" }
   | { phase: "embedding"; done: number; total: number }
   | { phase: "layout" }
-  | { phase: "done"; channels: import("@/types/channel").Channel[]; partial?: { fetched: number; expected: number } }
+  | {
+      phase: "done";
+      channels: import("@/types/channel").Channel[];
+      partial?: { fetched: number; expected: number };
+      /** UMAP optimization snapshots for the live condensation (milestone B).
+       *  Each frame: positions aligned to `channels` order, in layout space
+       *  ([-8,8]³ — the renderer applies its own world scale). Absent for the
+       *  <30-channel fallback and for cached layouts. */
+      epochFrames?: number[][][];
+    }
   | { phase: "error"; kind: GalaxyErrorKind; message: string };
 
 export type GalaxyErrorKind =
