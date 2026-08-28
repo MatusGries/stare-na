@@ -239,7 +239,7 @@ Synthesized from this review's findings. Run with Claude Code; checkbox as you s
   - Surfaced by: Architecture 2 (D3/2A) + Tensions 1-2 (D9/D10)
   - Files: src/pages/You.tsx, src/workers/galaxyWorker.ts, src/lib/arenaFetch.ts, App.tsx
   - Verify: fixture e2e (valid user, unknown user, mobile gate) + unit suite
-- [ ] **T6 (P2, human: ~2h / CC: ~15min)** — polish — Cheap reveal animation, error/degenerate states, IndexedDB layout cache
+- [x] **T6 (P2, human: ~2h / CC: ~15min)** — polish — Cheap reveal animation, error/degenerate states, IndexedDB layout cache
   - Surfaced by: Approach A spec + Performance finding 7 (D8/7A)
   - Files: src/components/galaxy/*, src/lib/layoutCache.ts
   - Verify: unit (cache hit/miss/corrupt) + visual check
@@ -247,7 +247,7 @@ Synthesized from this review's findings. Run with Claude Code; checkbox as you s
   - Surfaced by: Code Quality finding 4 (D5/4A) — hardcoded tereza-slancikova URL
   - Files: src/components/galaxy/SidePanel.tsx
   - Verify: unit asserts URL shape for both routes
-- [ ] **T8 (P2, human: ~1h / CC: ~10min)** — infra — Self-host model weights on Vercel; route-level dynamic import of ML stack; verify root bundle unchanged
+- [x] **T8 (P2, human: ~1h / CC: ~10min)** — infra — Self-host model weights on Vercel; route-level dynamic import of ML stack; verify root bundle unchanged
   - Surfaced by: Architecture finding 3 (D4/3A) + Tension 4.2 (D12)
   - Files: public/models/*, vite config/imports
   - Verify: `bunx vite build` — root chunk contains no onnx/transformers code
