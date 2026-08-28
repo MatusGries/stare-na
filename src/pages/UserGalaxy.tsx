@@ -8,10 +8,11 @@
 //     │                                    │
 //     unmount ──> worker.terminate()       ▼
 //                                     <GalaxyView channels …/>
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import GalaxyView from "@/components/galaxy/GalaxyView";
 import ProfilePanel from "@/components/galaxy/ProfilePanel";
+import { nameConstellations } from "@/lib/pipeline/constellations";
 import { getCachedLayout, putCachedLayout, dropCachedLayout } from "@/lib/layoutCache";
 import type { Channel } from "@/types/channel";
 import type { GalaxyProgress } from "@/lib/pipeline/types";
@@ -97,6 +98,13 @@ const UserGalaxy = () => {
   const workerRef = useRef<Worker | null>(null);
 
   const reserved = RESERVED.has(slug);
+
+  // B3: named constellations — computed once per layout, shown after the
+  // condensation settles (and immediately for cached galaxies).
+  const constellations = useMemo(
+    () => (channels && !condensing ? nameConstellations(channels) : []),
+    [channels, condensing]
+  );
 
   useEffect(() => {
     if (gated || reserved || !slug) return;
@@ -228,6 +236,7 @@ const UserGalaxy = () => {
         reveal={!fromCache}
         epochFrames={epochFrames ?? undefined}
         onCondensed={() => setCondensing(false)}
+        constellations={constellations}
         profilePanel={(open, onClose) => (
           <ProfilePanel
             open={open}

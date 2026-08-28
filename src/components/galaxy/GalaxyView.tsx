@@ -29,9 +29,20 @@ interface GalaxyViewProps {
   /** Milestone-B live condensation frames + completion callback. */
   epochFrames?: number[][][];
   onCondensed?: () => void;
+  /** Milestone-B3: named constellations — rendered as a clickable strip that
+   *  flies to each cluster's anchor channel. */
+  constellations?: import("@/lib/pipeline/constellations").Constellation[];
 }
 
-const GalaxyView = ({ channels, chrome, profilePanel, reveal, epochFrames, onCondensed }: GalaxyViewProps) => {
+const GalaxyView = ({
+  channels,
+  chrome,
+  profilePanel,
+  reveal,
+  epochFrames,
+  onCondensed,
+  constellations,
+}: GalaxyViewProps) => {
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
@@ -86,6 +97,55 @@ const GalaxyView = ({ channels, chrome, profilePanel, reveal, epochFrames, onCon
       />
 
       {profilePanel?.(profileOpen, () => setProfileOpen(false))}
+
+      {/* Constellation strip (B3) — hidden while the user is busy elsewhere */}
+      {!!constellations?.length && !activeChannel && !profileOpen && !searchQuery && (
+        <div
+          style={{
+            position: "absolute", bottom: 52, left: 0, right: 0, zIndex: 20,
+            display: "flex", justifyContent: "center", alignItems: "baseline",
+            gap: 18, flexWrap: "wrap", padding: "0 24px",
+            animation: "fadeUp 1.6s ease both",
+          }}
+        >
+          <span style={{
+            fontFamily: "'DM Mono', ui-monospace, monospace", fontSize: 9,
+            letterSpacing: "0.26em", textTransform: "uppercase",
+            color: "rgba(255,255,255,0.35)", userSelect: "none",
+          }}>
+            constellations
+          </span>
+          {constellations.map((c) => {
+            const anchor = channels.find((ch) => ch.id === c.anchorId);
+            return (
+              <button
+                key={c.anchorId}
+                onClick={() => anchor && select(anchor)}
+                title={`${c.count} channels`}
+                style={{
+                  all: "unset", cursor: "pointer",
+                  fontFamily: "'DM Mono', ui-monospace, monospace", fontSize: 11,
+                  letterSpacing: "0.18em", textTransform: "uppercase",
+                  color: "rgba(255,255,255,0.7)",
+                  borderBottom: "1px solid rgba(255,255,255,0.18)",
+                  paddingBottom: 2,
+                  transition: "color 0.25s ease, border-color 0.25s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = "rgba(255,255,255,0.95)";
+                  e.currentTarget.style.borderBottomColor = "rgba(255,255,255,0.45)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = "rgba(255,255,255,0.7)";
+                  e.currentTarget.style.borderBottomColor = "rgba(255,255,255,0.18)";
+                }}
+              >
+                {c.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Overview button — only shown when zoomed into something */}
       {(activeChannel || profileOpen) && (
