@@ -17,6 +17,9 @@ const RETRIES = 3;
 
 export class UnknownUserError extends Error {}
 export class NoChannelsError extends Error {}
+/** Couldn't determine whether the user exists (Are.na refused to answer).
+ *  Distinct from UnknownUserError: callers should retry, not reject the name. */
+export class ResolveUnavailableError extends Error {}
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -65,24 +68,60 @@ export const resolveUser = async (
   const slugQ = slugifyInput(input);
   if (!slugQ) throw new UnknownUserError(input);
 
-  // Search with the folded typed text (names work better than slugs here)
-  for (let page = 1; page <= SEARCH_PAGES; page++) {
-    const data = await getJson(
-      `${ARENA}/search/users?q=${encodeURIComponent(typed)}&page=${page}`,
-      signal
-    );
-    const match = (data.users ?? []).find((u: any) => {
-      const uSlug = (u.slug ?? "").toLowerCase();
-      const uName = fold((u.full_name ?? "").trim().toLowerCase());
-      return uSlug === slugQ || (uName && uName === typed);
-    });
-    if (match) return { id: match.id, slug: match.slug, fullName: match.full_name };
-    if ((data.total_pages ?? 1) <= page) break;
+  // 1. Proxy probe FIRST when the input is already slug-shaped: it goes
+  //    through our own cached endpoint with a token, so it's both faster and
+  //    far more reliable than Are.na's public search (which rate-limits hard).
+  //    A 404 here means the slug isn't current — fall through to search.
+  let probeSaidMissing = false;
+  if (slugQ === typed.replace(/\s+/g, "-")) {
+    try {
+      const probe = await getJson(`/api/arena?kind=channels&id=${slugQ}&page=1&per=1`, signal);
+      if (!probe.__status) return { id: slugQ, slug: slugQ };
+      probeSaidMissing = probe.__status === 404;
+    } catch (e) {
+      if (signal?.aborted) throw e;
+      // proxy unreachable — search is the only hope
+    }
   }
-  // Search-invisible but real slugs still resolve via the proxy probe
-  const probe = await getJson(`/api/arena?kind=channels&id=${slugQ}&page=1&per=1`, signal);
-  if (!probe.__status) return { id: slugQ, slug: slugQ };
-  throw new UnknownUserError(input);
+
+  // 2. Search by the folded typed text: catches display names ("Tereza
+  //    Slančíková") and slugs the probe missed. Failures here are NOT fatal.
+  let searchAnswered = false;
+  try {
+    for (let page = 1; page <= SEARCH_PAGES; page++) {
+      const data = await getJson(
+        `${ARENA}/search/users?q=${encodeURIComponent(typed)}&page=${page}`,
+        signal
+      );
+      searchAnswered = true;
+      const match = (data.users ?? []).find((u: any) => {
+        const uSlug = (u.slug ?? "").toLowerCase();
+        const uName = fold((u.full_name ?? "").trim().toLowerCase());
+        return uSlug === slugQ || (uName && uName === typed);
+      });
+      if (match) return { id: match.id, slug: match.slug, fullName: match.full_name };
+      if ((data.total_pages ?? 1) <= page) break;
+    }
+  } catch (e) {
+    if (signal?.aborted) throw e;
+    // Are.na refused (429/5xx) — we simply don't know
+  }
+
+  // 3. Last chance for non-slug input (a display name whose account the probe
+  //    never tried) — ask the proxy with the slugified guess.
+  if (!probeSaidMissing && slugQ !== typed.replace(/\s+/g, "-")) {
+    try {
+      const probe = await getJson(`/api/arena?kind=channels&id=${slugQ}&page=1&per=1`, signal);
+      if (!probe.__status) return { id: slugQ, slug: slugQ };
+      probeSaidMissing = probe.__status === 404;
+    } catch (e) {
+      if (signal?.aborted) throw e;
+    }
+  }
+
+  // A definitive "no such user" needs at least one endpoint to have answered.
+  if (probeSaidMissing || searchAnswered) throw new UnknownUserError(input);
+  throw new ResolveUnavailableError(input);
 };
 
 interface FetchProgress {

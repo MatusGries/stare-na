@@ -6,6 +6,7 @@ import {
   enrichChannels,
   UnknownUserError,
   NoChannelsError,
+  ResolveUnavailableError,
   CHANNEL_CAP,
   ENRICH_MAX_CHANNELS,
 } from "@/lib/arenaFetch";
@@ -43,69 +44,63 @@ const settle = async <T,>(p: Promise<T>): Promise<T> => {
 };
 
 describe("resolveUser", () => {
-  it("matches the exact slug from open search", async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({ users: [{ id: 1, slug: "tereza-p" }, { id: 284407, slug: "tereza-slancikova" }] })
-    );
-    const u = await settle(resolveUser("Tereza-Slancikova"));
-    expect(u.id).toBe(284407);
+  it("resolves a slug through the proxy FIRST, without touching public search", async () => {
+    // Are.na's public search rate-limits hard; our proxy is cached + tokened.
+    fetchMock.mockResolvedValueOnce(jsonResponse({ total_pages: 1, channels: [] }));
+    const u = await settle(resolveUser("terezka"));
+    expect(u.slug).toBe("terezka");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).toContain("/api/arena?kind=channels&id=terezka");
   });
 
-  it("scans further search pages for an exact match", async () => {
+  it("falls back to search when the proxy 404s (stale slug), matching full_name", async () => {
     fetchMock
+      .mockResolvedValueOnce(jsonResponse({ code: 404 }, 404)) // proxy: slug not current
+      .mockResolvedValueOnce(
+        jsonResponse({
+          users: [
+            { id: 1, slug: "tereza-p", full_name: "Tereza P" },
+            { id: 284407, slug: "terezka", full_name: "Tereza Slančíková" },
+          ],
+          total_pages: 1,
+        })
+      );
+    const u = await settle(resolveUser("Tereza Slančíková"));
+    expect(u.id).toBe(284407);
+    expect(u.slug).toBe("terezka"); // navigation uses the REAL slug
+  });
+
+  it("scans further search pages for an exact slug match", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ code: 404 }, 404)) // proxy miss
       .mockResolvedValueOnce(jsonResponse({ users: [{ id: 1, slug: "other" }], total_pages: 2 }))
       .mockResolvedValueOnce(jsonResponse({ users: [{ id: 7, slug: "buried" }], total_pages: 2 }));
     const u = await settle(resolveUser("buried"));
     expect(u.id).toBe(7);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("falls back to the proxy probe for search-invisible slugs (renamed accounts, surname search gaps)", async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse({ users: [], total_pages: 1 })) // search misses
-      .mockResolvedValueOnce(jsonResponse({ total_pages: 1, channels: [] })); // proxy 200
+  it("REGRESSION: a rate-limited search does not abort resolution", async () => {
+    // The bug: search 429 threw out of resolveUser before the working proxy
+    // fallback ran, so /you showed "are.na isn't answering" for a real user.
+    fetchMock.mockImplementation((url: any) => {
+      const s = String(url);
+      if (s.includes("/api/arena")) return Promise.resolve(jsonResponse({ total_pages: 1, channels: [] }));
+      return Promise.resolve(jsonResponse({ message: "Too Many Requests" }, 429));
+    });
     const u = await settle(resolveUser("terezka"));
-    expect(u.id).toBe("terezka");
-    expect(String(fetchMock.mock.calls[1][0])).toContain("/api/arena?kind=channels&id=terezka");
+    expect(u.slug).toBe("terezka");
   });
 
-  it("throws UnknownUserError when search misses and the proxy probe 404s", async () => {
+  it("throws UnknownUserError when the proxy definitively 404s and search answers with no match", async () => {
     fetchMock
-      .mockResolvedValueOnce(jsonResponse({ users: [{ id: 1, slug: "tereza-p" }], total_pages: 1 }))
-      .mockResolvedValueOnce(jsonResponse({ code: 404 }, 404)); // stale slug
+      .mockResolvedValueOnce(jsonResponse({ code: 404 }, 404))
+      .mockResolvedValueOnce(jsonResponse({ users: [{ id: 1, slug: "someone-else" }], total_pages: 1 }));
     await expect(settle(resolveUser("nobody-here"))).rejects.toBeInstanceOf(UnknownUserError);
   });
 
-  it("resolves a display name with spaces and diacritics via full_name match", async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        users: [
-          { id: 1, slug: "tereza-p", full_name: "Tereza P" },
-          { id: 284407, slug: "terezka", full_name: "Tereza Slančíková" },
-        ],
-        total_pages: 1,
-      })
-    );
-    const u = await settle(resolveUser("Tereza Slančíková"));
-    expect(u.id).toBe(284407);
-    expect(u.slug).toBe("terezka"); // navigation uses the REAL slug, not the typed name
-  });
-
-  it("slugifies spaced input for the slug comparison ('jane doe' → jane-doe)", async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({ users: [{ id: 9, slug: "jane-doe", full_name: "J. D." }], total_pages: 1 })
-    );
-    const u = await settle(resolveUser("Jane Doe"));
-    expect(u.id).toBe(9);
-  });
-
-  it("probes the proxy with the slugified candidate when search misses", async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse({ users: [], total_pages: 1 }))
-      .mockResolvedValueOnce(jsonResponse({ total_pages: 1, channels: [] }));
-    const u = await settle(resolveUser("Some Body"));
-    expect(String(fetchMock.mock.calls[1][0])).toContain("id=some-body");
-    expect(u.slug).toBe("some-body");
+  it("throws ResolveUnavailableError when NOTHING answered (retry, don't reject the name)", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ message: "Too Many Requests" }, 429));
+    await expect(settle(resolveUser("terezka"))).rejects.toBeInstanceOf(ResolveUnavailableError);
   });
 });
 

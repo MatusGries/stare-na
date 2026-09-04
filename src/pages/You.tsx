@@ -3,7 +3,7 @@
 // navigating, so unknown names show an inline error with no navigation.
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { resolveUser, UnknownUserError } from "@/lib/arenaFetch";
+import { resolveUser, slugifyInput, UnknownUserError } from "@/lib/arenaFetch";
 
 const mono = "'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace";
 
@@ -13,14 +13,22 @@ const You = () => {
   const navigate = useNavigate();
 
   const submit = async () => {
-    const slug = value.trim().toLowerCase().replace(/^@/, "").replace(/\/+$/, "").split("/").pop() ?? "";
-    if (!slug) return;
+    const raw = value.trim().replace(/^@/, "").replace(/\/+$/, "");
+    const typed = raw.split("/").pop() ?? "";
+    if (!typed) return;
     setState("checking");
     try {
-      const user = await resolveUser(slug);
+      const user = await resolveUser(typed);
       navigate(`/${user.slug}`);
     } catch (e) {
-      setState(e instanceof UnknownUserError ? "unknown" : "failed");
+      if (e instanceof UnknownUserError) {
+        setState("unknown");
+        return;
+      }
+      // Are.na couldn't confirm (it rate-limits its public search hard). Don't
+      // strand the user on a validation hiccup — the galaxy page resolves
+      // again with retries and reports a real failure there if it is one.
+      navigate(`/${slugifyInput(typed)}`);
     }
   };
 
