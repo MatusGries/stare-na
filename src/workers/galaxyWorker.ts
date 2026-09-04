@@ -20,6 +20,7 @@ import {
   UnknownUserError,
   NoChannelsError,
 } from "@/lib/arenaFetch";
+import { getProgress, putProgress } from "@/lib/progressCache";
 import type { GalaxyProgress, GalaxyWorkerRequest } from "@/lib/pipeline/types";
 
 let embedder: any = null;
@@ -57,12 +58,39 @@ self.onmessage = (e: MessageEvent<GalaxyWorkerRequest>) => {
     return;
   }
   if (msg.type === "start") {
+    const slug = msg.username;
     void runGalaxyPipeline(
-      msg.username,
+      slug,
       {
-        resolveUser,
-        fetchAllChannels,
-        enrichChannels,
+        // Never re-resolve someone we've already resolved: a throttled search
+        // used to strand resumes at "finding <user>…" even though we held
+        // their channels on disk.
+        resolveUser: async (input, signal) => {
+          const cached = await getProgress(slug);
+          if (cached?.userId !== undefined) return { id: cached.userId, slug };
+          return resolveUser(input, signal);
+        },
+        // Resumable: reuse whatever earlier attempts gathered for this user,
+        // fetch only the missing pages, and persist the new watermark. Are.na
+        // throttles unpredictably, so each attempt must add ground, not restart.
+        fetchAllChannels: async (userId, cbs, signal) => {
+          const resume = await getProgress(slug);
+          const result = await fetchAllChannels(userId, cbs, signal, resume);
+          await putProgress(slug, { ...result.progress, userId });
+          return result;
+        },
+        enrichChannels: async (channels, onProgress, signal) => {
+          await enrichChannels(channels, onProgress, signal);
+          // Persist enrichment too — a retry then skips those ~60 requests.
+          const resume = await getProgress(slug);
+          if (resume) {
+            const byId = new Map(channels.map((c) => [String(c.id), c]));
+            await putProgress(slug, {
+              ...resume,
+              channels: resume.channels.map((c) => byId.get(String(c.id)) ?? c),
+            });
+          }
+        },
         loadModel,
         embedTexts,
         layoutChannels: (inputs, opts) => layoutChannelsAnimated(inputs, undefined, opts?.frames ? 48 : 0),

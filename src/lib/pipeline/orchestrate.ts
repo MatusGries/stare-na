@@ -11,7 +11,10 @@ export interface PipelineDeps {
     userId: number | string,
     progress: { onPage?: (page: number, totalPages: number) => void },
     signal?: AbortSignal
-  ) => Promise<{ channels: RawChannel[]; partial?: { fetched: number; expected: number } }>;
+  ) => Promise<{
+    channels: RawChannel[];
+    partial?: { fetched: number; expected: number };
+  }>;
   enrichChannels: (
     channels: RawChannel[],
     onProgress?: (done: number, total: number) => void,

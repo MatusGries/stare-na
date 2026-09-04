@@ -14,6 +14,7 @@ import GalaxyView from "@/components/galaxy/GalaxyView";
 import ProfilePanel from "@/components/galaxy/ProfilePanel";
 import { nameConstellations } from "@/lib/pipeline/constellations";
 import { getCachedLayout, putCachedLayout, dropCachedLayout } from "@/lib/layoutCache";
+import { dropProgress } from "@/lib/progressCache";
 import type { Channel } from "@/types/channel";
 import type { GalaxyProgress } from "@/lib/pipeline/types";
 
@@ -121,7 +122,8 @@ const UserGalaxy = () => {
         if (cancelled) return;
         if (cached) {
           setFromCache(true);
-          setChannels(cached);
+          setChannels(cached.channels);
+          setPartial(cached.partial ?? null);
           return;
         }
       }
@@ -149,8 +151,9 @@ const UserGalaxy = () => {
           setChannels(p.channels);
           setPartial(p.partial ?? null);
           setProgress(null);
-          // Cache only complete galaxies — a partial one should retry, not stick.
-          if (!p.partial) void putCachedLayout(slug, p.channels);
+          // Partials cache too now: fetching is resumable, so a partial is a
+          // waypoint — render it instantly next visit and offer to continue.
+          void putCachedLayout(slug, p.channels, p.partial);
         } else {
           setProgress(p);
         }
@@ -207,10 +210,16 @@ const UserGalaxy = () => {
           <div style={{ position: "absolute", top: 20, right: 24, zIndex: 20,
             fontFamily: mono, fontSize: 10, letterSpacing: "0.18em",
             textTransform: "uppercase", color: "rgba(255,200,150,0.7)" }}>
-            rendered {partial.fetched} of ~{partial.expected} —{" "}
-            <button onClick={() => { setChannels(null); setProgress(null); setEpochFrames(null); setAnimPhase(null); setAttempt((a) => a + 1); }}
+            {partial.fetched} of ~{partial.expected} channels —{" "}
+            <button
+              onClick={() => {
+                // Additive: the worker resumes from cached progress, so this
+                // gathers what's still missing rather than starting over.
+                setChannels(null); setProgress(null); setEpochFrames(null);
+                setAnimPhase(null); setAttempt((a) => a + 1);
+              }}
               style={{ all: "unset", cursor: "pointer", textDecoration: "underline" }}>
-              retry
+              gather the rest
             </button>
           </div>
         )}
@@ -221,7 +230,10 @@ const UserGalaxy = () => {
             from memory —{" "}
             <button
               onClick={() => {
+                // Regenerate means FROM SCRATCH — drop the resume watermark
+                // too, otherwise we'd just re-render the same cached pages.
                 void dropCachedLayout(slug);
+                void dropProgress(slug);
                 setChannels(null); setProgress(null); setFromCache(false);
                 setAttempt((a) => a + 1);
               }}

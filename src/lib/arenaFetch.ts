@@ -8,6 +8,7 @@
 //   · channel list is NOT recency-sorted → the 750 cap sorts client-side
 import type { RawChannel } from "./pipeline/types";
 import { decodeEntities } from "./decodeEntities";
+import { emptyProgress, type FetchProgress } from "./progressCache";
 
 const ARENA = "https://api.are.na/v2";
 export const PER_PAGE = 25;
@@ -124,12 +125,12 @@ export const resolveUser = async (
   throw new ResolveUnavailableError(input);
 };
 
-interface FetchProgress {
+interface FetchCallbacks {
   onPage?: (page: number, totalPages: number) => void;
 }
 
 const mapChannel = (c: any): RawChannel => ({
-  id: c.id,
+  id: String(c.id),
   slug: c.slug,
   // Are.na entity-encodes symbol-heavy titles ("EVA ⋆｡°✩") — decode once here
   title: decodeEntities(c.title ?? ""),
@@ -137,31 +138,55 @@ const mapChannel = (c: any): RawChannel => ({
   blockCount: c.length ?? 0,
   followerCount: c.follower_count ?? 0,
   thumbnailUrl: null,
-  // updated_at kept out of RawChannel; used only for the cap sort below
+  updatedAt: c.updated_at,
 });
+
+export interface FetchResult {
+  channels: RawChannel[];
+  partial?: { fetched: number; expected: number };
+  /** Bookkeeping to persist so the NEXT attempt resumes where this stopped. */
+  progress: FetchProgress;
+}
 
 /**
  * Fetch a user's galaxy channels (owned + followed, matching the gift) via
- * the proxy. Paginates by total_pages; a mid-fetch failure returns what was
- * fetched with `partial` set instead of throwing.
+ * the proxy — RESUMABLY. Pages recorded in `resume` are skipped, new pages
+ * merge into what's already there, and the returned progress lets the next
+ * attempt pick up the rest. Are.na throttles unpredictably, so an attempt
+ * that only lands some pages is normal and must not lose ground.
  */
 export const fetchAllChannels = async (
   userId: number | string,
-  { onPage }: FetchProgress = {},
-  signal?: AbortSignal
-): Promise<{ channels: RawChannel[]; partial?: { fetched: number; expected: number } }> => {
-  const raw: any[] = [];
-  let expected = 0;
+  { onPage }: FetchCallbacks = {},
+  signal?: AbortSignal,
+  resume?: FetchProgress | null
+): Promise<FetchResult> => {
+  const progress: FetchProgress = resume
+    ? {
+        channels: [...resume.channels],
+        pagesDone: {
+          channels: [...resume.pagesDone.channels],
+          following: [...resume.pagesDone.following],
+        },
+        totalPages: { ...resume.totalPages },
+      }
+    : emptyProgress();
+
+  // Dedup across attempts by id; later data wins so enrichment survives.
+  const byId = new Map<string, RawChannel>(progress.channels.map((c) => [String(c.id), c]));
   let failed = false;
+  let expected = 0;
 
   // A failed page is SKIPPED, not fatal — Are.na 504s intermittently and one
   // bad page must not drop every page after it. Stop a kind only after 3
   // consecutive failures (the API is likely down, not flaky).
   const MAX_CONSECUTIVE_FAILURES = 3;
   for (const kind of ["channels", "following"] as const) {
-    let totalPages = 1;
+    const done = new Set(progress.pagesDone[kind]);
+    let totalPages = progress.totalPages[kind] || 1;
     let consecutiveFailures = 0;
     for (let page = 1; page <= totalPages; page++) {
+      if (done.has(page)) continue; // already landed on an earlier attempt
       try {
         const data = await getJson(
           `/api/arena?kind=${kind}&id=${userId}&page=${page}&per=${PER_PAGE}`,
@@ -170,13 +195,23 @@ export const fetchAllChannels = async (
         if (data.__status) throw new Error(`HTTP ${data.__status}`);
         consecutiveFailures = 0;
         totalPages = data.total_pages ?? 1;
+        progress.totalPages[kind] = totalPages;
         if (page === 1) expected += data.length ?? 0;
         // /following mixes users/blocks in — keep only channels
         const items = (data.channels ?? []).filter(
           (c: any) => (c.base_class ?? c.class ?? "Channel") === "Channel" || c.class === "Channel"
         );
-        raw.push(...items);
-        onPage?.(page, totalPages);
+        for (const item of items) {
+          const mapped = mapChannel(item);
+          const prev = byId.get(String(mapped.id));
+          // keep enrichment already gathered for this channel
+          byId.set(String(mapped.id), prev?.enrichmentTitles
+            ? { ...mapped, enrichmentTitles: prev.enrichmentTitles }
+            : mapped);
+        }
+        done.add(page);
+        progress.pagesDone[kind] = [...done];
+        onPage?.(done.size, totalPages);
         if (page < totalPages) await sleep(PAGE_DELAY_MS);
       } catch (e) {
         if (signal?.aborted) throw e;
@@ -187,28 +222,32 @@ export const fetchAllChannels = async (
     }
   }
 
-  // Dedup (a followed own channel can appear twice)
-  const seen = new Set<string>();
-  let channels = raw.filter((c) => {
-    const id = String(c.id);
-    if (seen.has(id)) return false;
-    seen.add(id);
-    return true;
-  });
+  let channels = [...byId.values()];
+  progress.channels = channels;
 
   if (!channels.length && !failed) throw new NoChannelsError();
 
   // 750 cap: list is NOT recency-sorted (T1) — sort by updated_at client-side
   if (channels.length > CHANNEL_CAP) {
     channels = [...channels]
-      .sort((a, b) => String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? "")))
+      .sort((a, b) => String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? "")))
       .slice(0, CHANNEL_CAP);
   }
 
-  const mapped = channels.map(mapChannel);
-  return failed && mapped.length
-    ? { channels: mapped, partial: { fetched: mapped.length, expected: Math.max(expected, mapped.length) } }
-    : { channels: mapped };
+  // "expected" across attempts: the API's reported totals, or what we hold
+  const reported = Math.max(expected, resume?.channels.length ?? 0);
+  const stillMissing =
+    progress.pagesDone.channels.length < progress.totalPages.channels ||
+    progress.pagesDone.following.length < progress.totalPages.following;
+
+  return {
+    channels,
+    progress,
+    partial:
+      (failed || stillMissing) && channels.length
+        ? { fetched: channels.length, expected: Math.max(reported, channels.length) }
+        : undefined,
+  };
 };
 
 export const ENRICH_MAX_CHANNELS = 60;
@@ -226,7 +265,13 @@ export const enrichChannels = async (
   signal?: AbortSignal
 ): Promise<void> => {
   const targets = channels
-    .filter((c) => !(c.description ?? "").trim() && (c.blockCount ?? 0) > 0)
+    .filter(
+      (c) =>
+        !(c.description ?? "").trim() &&
+        (c.blockCount ?? 0) > 0 &&
+        // already enriched on an earlier attempt (restored from progress cache)
+        !c.enrichmentTitles
+    )
     .sort((a, b) => (b.blockCount ?? 0) - (a.blockCount ?? 0))
     .slice(0, ENRICH_MAX_CHANNELS);
 
@@ -241,7 +286,8 @@ export const enrichChannels = async (
         .map((b: any) => decodeEntities(b.title || b.generated_title || "").trim())
         .filter(Boolean);
     } catch {
-      // skip — enrichment is best-effort
+      // skip — enrichment is best-effort, and an un-enriched channel stays
+      // eligible on the next attempt (no enrichmentTitles set)
     }
     onProgress?.(i + 1, targets.length);
     if (i < targets.length - 1) await sleep(120);

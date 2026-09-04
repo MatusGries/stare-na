@@ -10,8 +10,11 @@ export interface RawChannel {
   blockCount?: number;
   followerCount?: number;
   thumbnailUrl?: string | null;
-  /** Block titles gathered by the bounded enrichment step (design doc T1). */
+  /** Block titles gathered by the bounded enrichment step (design doc T1).
+   *  Persisted with fetch progress so a retry never re-fetches them. */
   enrichmentTitles?: string[];
+  /** Are.na updated_at — only used for the >750 recency cap. */
+  updatedAt?: string;
 }
 
 /**

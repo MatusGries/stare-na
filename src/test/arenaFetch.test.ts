@@ -159,6 +159,63 @@ describe("fetchAllChannels", () => {
     expect(partial).toBeDefined();
   });
 
+  it("RESUME: a second attempt fetches only the missing pages and keeps the first attempt's channels", async () => {
+    // Attempt 1: page 1 of 3 lands, pages 2-3 die (Are.na throttling).
+    fetchMock.mockImplementation((url: string) => {
+      const u = new URL(url, "http://x");
+      if (u.searchParams.get("kind") === "channels") {
+        return Number(u.searchParams.get("page")) === 1
+          ? Promise.resolve(page("channels", [1, 2], 3, 6))
+          : Promise.reject(new Error("504"));
+      }
+      return Promise.resolve(jsonResponse({ total_pages: 1, length: 0, channels: [] }));
+    });
+    const first = await settle(fetchAllChannels(99));
+    expect(first.channels.map((c) => String(c.id)).sort()).toEqual(["1", "2"]);
+    expect(first.partial).toBeDefined();
+    expect(first.progress.pagesDone.channels).toEqual([1]);
+
+    // Attempt 2, resuming: page 1 must NOT be requested again; 2-3 now land.
+    fetchMock.mockClear();
+    fetchMock.mockImplementation((url: string) => {
+      const u = new URL(url, "http://x");
+      const p = Number(u.searchParams.get("page"));
+      if (u.searchParams.get("kind") === "channels") {
+        return Promise.resolve(page("channels", p === 2 ? [3, 4] : [5], 3, 6));
+      }
+      return Promise.resolve(jsonResponse({ total_pages: 1, length: 0, channels: [] }));
+    });
+    const second = await settle(fetchAllChannels(99, {}, undefined, first.progress));
+
+    const requestedChannelPages = fetchMock.mock.calls
+      .map((c: any[]) => new URL(String(c[0]), "http://x"))
+      .filter((u: URL) => u.searchParams.get("kind") === "channels")
+      .map((u: URL) => Number(u.searchParams.get("page")));
+    expect(requestedChannelPages).not.toContain(1); // already had it
+    expect(requestedChannelPages).toEqual(expect.arrayContaining([2, 3]));
+
+    // accumulated across BOTH attempts
+    expect(second.channels.map((c) => String(c.id)).sort()).toEqual(["1", "2", "3", "4", "5"]);
+    expect(second.partial).toBeUndefined(); // complete now
+  });
+
+  it("RESUME: enrichment gathered earlier survives a re-fetch of the same channel", async () => {
+    const resume = {
+      channels: [
+        { id: "1", slug: "c1", title: "ch 1", blockCount: 1, enrichmentTitles: ["deep", "cut"] },
+      ] as RawChannel[],
+      pagesDone: { channels: [], following: [] },
+      totalPages: { channels: 1, following: 0 },
+    };
+    fetchMock.mockImplementation((url: string) => {
+      const u = new URL(url, "http://x");
+      if (u.searchParams.get("kind") === "channels") return Promise.resolve(page("channels", [1], 1, 1));
+      return Promise.resolve(jsonResponse({ total_pages: 1, length: 0, channels: [] }));
+    });
+    const { channels } = await settle(fetchAllChannels(99, {}, undefined, resume));
+    expect(channels[0].enrichmentTitles).toEqual(["deep", "cut"]);
+  });
+
   it("throws NoChannelsError when both lists are empty", async () => {
     fetchMock.mockImplementation(() =>
       Promise.resolve(jsonResponse({ total_pages: 1, length: 0, channels: [] }))
@@ -181,6 +238,22 @@ describe("fetchAllChannels", () => {
 });
 
 describe("enrichChannels", () => {
+  it("RESUME: skips channels already enriched on an earlier attempt", async () => {
+    const channels: RawChannel[] = [
+      { id: "1", title: "a", description: "", blockCount: 90, enrichmentTitles: ["cached"] },
+      { id: "2", title: "b", description: "", blockCount: 80 },
+    ];
+    const hit: string[] = [];
+    fetchMock.mockImplementation((url: string) => {
+      hit.push(String(url));
+      return Promise.resolve(jsonResponse({ contents: [{ title: "fresh" }] }));
+    });
+    await settle(enrichChannels(channels));
+    expect(hit.length).toBe(1); // only channel 2
+    expect(hit[0]).toContain("/channels/2/contents");
+    expect(channels[0].enrichmentTitles).toEqual(["cached"]); // untouched
+  });
+
   it("enriches only description-less channels, largest first, capped", async () => {
     const channels: RawChannel[] = Array.from({ length: ENRICH_MAX_CHANNELS + 20 }, (_, i) => ({
       id: i,
