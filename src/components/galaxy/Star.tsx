@@ -11,6 +11,8 @@ interface StarProps {
   isFiltered: boolean;
   searchActive: boolean;
   isNeighbor: boolean;
+  /** Not part of the framed constellation — fade back so the cluster reads. */
+  dimmed?: boolean;
   /** Condensation reveal (generated galaxies): star flies in from a seeded
    *  scatter position over ~4s. Absent/false on the root route — zero change. */
   reveal?: boolean;
@@ -81,6 +83,7 @@ const Star = ({
   isFiltered,
   searchActive,
   isNeighbor,
+  dimmed,
   reveal,
   positionDriven,
   registerGroup,
@@ -183,8 +186,9 @@ const Star = ({
     const s = groupRef.current.scale.x;
     groupRef.current.scale.setScalar(s + (targetScale - s) * 0.10);
 
-    // Smooth opacity
-    const targetOp = searchActive && !isFiltered ? 0.035 : 1.0;
+    // Smooth opacity — search filtering is the hard cut, constellation
+    // dimming is a softer fade back.
+    const targetOp = searchActive && !isFiltered ? 0.035 : dimmed ? 0.14 : 1.0;
     matRef.current.opacity += (targetOp - matRef.current.opacity) * 0.12;
 
     // Smooth color shift — neighbors use base color (filaments carry semantic meaning)

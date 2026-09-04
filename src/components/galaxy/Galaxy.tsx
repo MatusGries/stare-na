@@ -30,6 +30,11 @@ interface GalaxyProps {
   constellations?: import("@/lib/pipeline/constellations").Constellation[];
   /** Fade the labels back while a panel or search is in focus. */
   constellationsDimmed?: boolean;
+  /** Frame a whole cluster (center + camera stop distance) instead of a star. */
+  clusterFocus?: { center: [number, number, number]; distance: number } | null;
+  /** Channel ids in the framed cluster — members brighten, others fade back. */
+  clusterMembers?: Set<string> | null;
+  onSelectConstellation?: (c: import("@/lib/pipeline/constellations").Constellation) => void;
   onSelectChannel: (channel: Channel) => void;
   onBlackHoleClick: () => void;
   resetSignal: number;
@@ -99,6 +104,9 @@ const Scene = ({
   onCondensed,
   constellations,
   constellationsDimmed,
+  clusterFocus,
+  clusterMembers,
+  onSelectConstellation,
   onSelectChannel,
   onBlackHoleClick,
   resetSignal,
@@ -127,9 +135,14 @@ const Scene = ({
   }, [onCondensed]);
   const driving = !condensed && !!epochFrames?.length;
 
+  // A selected star wins over a framed cluster (drilling in from the
+  // constellation panel should fly to the channel).
   const cameraTarget: [number, number, number] | null = activeChannel
     ? [activeChannel.x * COORD_SCALE, activeChannel.y * COORD_SCALE, activeChannel.z * COORD_SCALE]
+    : clusterFocus
+    ? clusterFocus.center
     : null;
+  const cameraDistance = !activeChannel && clusterFocus ? clusterFocus.distance : undefined;
 
   const activeNeighborSet = useMemo(
     () => new Set(activeChannel?.neighbors ?? []),
@@ -193,7 +206,8 @@ const Scene = ({
           isActive={activeChannel?.id === ch.id}
           isFiltered={ch.title.toLowerCase().includes(query)}
           searchActive={searchActive}
-          isNeighbor={activeNeighborSet.has(ch.id)}
+          isNeighbor={activeNeighborSet.has(ch.id) || !!clusterMembers?.has(ch.id)}
+          dimmed={!!clusterMembers && !clusterMembers.has(ch.id)}
           reveal={reveal && !epochFrames?.length}
           positionDriven={driving}
           registerGroup={epochFrames?.length ? registerGroup : undefined}
@@ -218,11 +232,11 @@ const Scene = ({
           constellations={constellations}
           channels={channels}
           dimmed={!!constellationsDimmed}
-          onSelect={onSelectChannel}
+          onSelect={(c) => onSelectConstellation?.(c)}
         />
       )}
 
-      <CameraController target={cameraTarget} resetSignal={resetSignal} />
+      <CameraController target={cameraTarget} distance={cameraDistance} resetSignal={resetSignal} />
 
       <OrbitControls
         makeDefault

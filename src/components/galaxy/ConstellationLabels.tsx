@@ -78,7 +78,8 @@ const ConstellationLabels = ({
   channels: Channel[];
   /** Fade back while the user is reading a panel or searching. */
   dimmed: boolean;
-  onSelect: (channel: Channel) => void;
+  /** Clicking a name frames the cluster and opens its summary. */
+  onSelect: (constellation: Constellation) => void;
 }) => {
   const byId = useMemo(() => new Map(channels.map((c) => [c.id, c])), [channels]);
 
@@ -93,7 +94,6 @@ const ConstellationLabels = ({
         const n = Math.max(members.length, 1);
         return {
           constellation: c,
-          anchor: byId.get(c.anchorId),
           position: new THREE.Vector3(
             (mean[0] / n) * COORD_SCALE,
             (mean[1] / n) * COORD_SCALE,
@@ -106,13 +106,13 @@ const ConstellationLabels = ({
 
   return (
     <>
-      {placed.map(({ constellation, anchor, position }) => (
+      {placed.map(({ constellation, position }) => (
         <Label
           key={constellation.anchorId}
           constellation={constellation}
           position={position}
           dimmed={dimmed}
-          onSelect={() => anchor && onSelect(anchor)}
+          onSelect={() => onSelect(constellation)}
         />
       ))}
     </>

@@ -11,40 +11,40 @@ import { OVERVIEW_CAMERA, FOCUS_DISTANCE } from "./constants";
 interface CameraControllerProps {
   /** World-space position of the selected star, or null for free orbit. */
   target: [number, number, number] | null;
+  /** How far to sit from `target`. Defaults to FOCUS_DISTANCE (one star);
+   *  a constellation passes a larger distance so the whole cluster frames. */
+  distance?: number;
   /** Increment this to trigger a return-to-overview animation. */
   resetSignal: number;
 }
 
-const CameraController = ({ target, resetSignal }: CameraControllerProps) => {
+const CameraController = ({ target, distance, resetSignal }: CameraControllerProps) => {
   const { camera, controls } = useThree();
   const animating = useRef(false);
   const camDest = useRef(new THREE.Vector3());
   const lookDest = useRef(new THREE.Vector3());
   const lerpK = useRef(0.038);
 
-  // Approach selected star from current viewing direction — preserves orientation
+  // Approach the target from the current viewing direction — preserves
+  // orientation, so a fly-to never disorients. `distance` sets how far to
+  // stop: one star (FOCUS_DISTANCE) or a whole constellation (framed).
+  const targetKey = target ? target.join(",") : "";
   useEffect(() => {
     if (!target) { animating.current = false; return; }
 
+    const stop = distance ?? FOCUS_DISTANCE;
     const tgt = new THREE.Vector3(target[0], target[1], target[2]);
 
-    // Direction from target back to camera (where camera currently is relative to star)
+    // Direction from target back to camera, normalized to the stop distance
     const dir = camera.position.clone().sub(tgt);
-    const dist = dir.length();
-
-    if (dist > FOCUS_DISTANCE * 0.6) {
-      // Maintain current viewing angle, just move to FOCUS_DISTANCE from star
-      dir.normalize().multiplyScalar(FOCUS_DISTANCE);
-    } else {
-      // Already close — pull back to a comfortable distance from current position
-      dir.normalize().multiplyScalar(FOCUS_DISTANCE);
-    }
+    if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1); // degenerate: camera on target
+    dir.normalize().multiplyScalar(stop);
 
     camDest.current.copy(tgt).add(dir);
     lookDest.current.copy(tgt);
     lerpK.current = 0.040;
     animating.current = true;
-  }, [target]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [targetKey, distance]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Return to overview — slower lerp for a more expansive feeling
   useEffect(() => {

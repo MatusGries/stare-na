@@ -12,10 +12,13 @@
 //   UserGalaxy (worker pipeline + progress, T5)   ──┴─→ configure it
 //
 // Every future UI fix lands here once — never fork this shell.
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import Galaxy from "@/components/galaxy/Galaxy";
 import SearchBar from "@/components/galaxy/SearchBar";
 import SidePanel from "@/components/galaxy/SidePanel";
+import ConstellationPanel from "@/components/galaxy/ConstellationPanel";
+import { clusterFraming } from "@/lib/clusterFraming";
+import type { Constellation } from "@/lib/pipeline/constellations";
 import type { Channel } from "@/types/channel";
 
 interface GalaxyViewProps {
@@ -46,23 +49,49 @@ const GalaxyView = ({
   constellations,
 }: GalaxyViewProps) => {
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null);
+  const [activeConstellation, setActiveConstellation] = useState<Constellation | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
   const [resetSignal, setResetSignal] = useState(0);
 
   const select = (ch: Channel) => {
     setProfileOpen(false);
+    setActiveConstellation(null);
     setActiveChannel(ch);
   };
+
+  /** Clicking a constellation frames the whole cluster and summarizes it. */
+  const selectConstellation = (c: Constellation) => {
+    setProfileOpen(false);
+    setActiveChannel(null);
+    setActiveConstellation(c);
+  };
+
+  // Camera framing for the active cluster (math + tests in lib/clusterFraming)
+  const clusterFocus = useMemo(() => {
+    if (!activeConstellation) return null;
+    const byId = new Map(channels.map((c) => [c.id, c]));
+    const members = activeConstellation.channelIds
+      .map((id) => byId.get(id))
+      .filter(Boolean) as Channel[];
+    return clusterFraming(members);
+  }, [activeConstellation, channels]);
+
+  const clusterMembers = useMemo(
+    () => (activeConstellation ? new Set(activeConstellation.channelIds) : null),
+    [activeConstellation]
+  );
 
   const handleBlackHoleClick = () => {
     if (!profilePanel) return;
     setActiveChannel(null);
+    setActiveConstellation(null);
     setProfileOpen(true);
   };
 
   const handleOverview = () => {
     setActiveChannel(null);
+    setActiveConstellation(null);
     setProfileOpen(false);
     setResetSignal((c) => c + 1);
   };
@@ -88,6 +117,9 @@ const GalaxyView = ({
         onCondensed={onCondensed}
         constellations={constellations}
         constellationsDimmed={!!activeChannel || profileOpen || !!searchQuery}
+        clusterFocus={clusterFocus}
+        clusterMembers={clusterMembers}
+        onSelectConstellation={selectConstellation}
         onSelectChannel={select}
         onBlackHoleClick={handleBlackHoleClick}
         resetSignal={resetSignal}
@@ -101,10 +133,17 @@ const GalaxyView = ({
         onNavigate={select}
       />
 
+      <ConstellationPanel
+        constellation={activeConstellation}
+        allChannels={channels}
+        onClose={handleOverview}
+        onSelectChannel={select}
+      />
+
       {profilePanel?.(profileOpen, () => setProfileOpen(false))}
 
       {/* Constellation strip (B3) — hidden while the user is busy elsewhere */}
-      {!!constellations?.length && !activeChannel && !profileOpen && !searchQuery && (
+      {!!constellations?.length && !activeChannel && !activeConstellation && !profileOpen && !searchQuery && (
         <div
           style={{
             position: "absolute", bottom: 52, left: 0, right: 0, zIndex: 20,
@@ -121,11 +160,10 @@ const GalaxyView = ({
             constellations
           </span>
           {constellations.map((c) => {
-            const anchor = channels.find((ch) => ch.id === c.anchorId);
             return (
               <button
                 key={c.anchorId}
-                onClick={() => anchor && select(anchor)}
+                onClick={() => selectConstellation(c)}
                 title={`${c.count} channels`}
                 style={{
                   all: "unset", cursor: "pointer",
@@ -153,7 +191,7 @@ const GalaxyView = ({
       )}
 
       {/* Overview button — only shown when zoomed into something */}
-      {(activeChannel || profileOpen) && (
+      {(activeChannel || activeConstellation || profileOpen) && (
         <button
           onClick={handleOverview}
           style={{
