@@ -23,6 +23,9 @@ interface StarProps {
 }
 
 const REVEAL_SECONDS = 4;
+/** Camera distance at which a star renders at its nominal size (≈ the
+ *  focused-star distance); further out, stars scale up to stay legible. */
+const REF_DISTANCE = 18;
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 
 // Deterministic per-channel scatter start: a point on a far shell, plus a
@@ -52,11 +55,13 @@ const glowTex = (() => {
   const ctx = canvas.getContext("2d")!;
   const h = sz / 2;
   const g = ctx.createRadialGradient(h, h, 0, h, h, h);
+  // Slightly fuller halo than a pure photographic PSF: the tight core alone
+  // read as dust at overview distance.
   g.addColorStop(0.00, "rgba(255,255,255,1.000)");
-  g.addColorStop(0.05, "rgba(255,255,255,0.920)");
-  g.addColorStop(0.16, "rgba(255,255,255,0.420)");
-  g.addColorStop(0.38, "rgba(255,255,255,0.090)");
-  g.addColorStop(0.60, "rgba(255,255,255,0.020)");
+  g.addColorStop(0.06, "rgba(255,255,255,0.960)");
+  g.addColorStop(0.18, "rgba(255,255,255,0.560)");
+  g.addColorStop(0.40, "rgba(255,255,255,0.160)");
+  g.addColorStop(0.62, "rgba(255,255,255,0.040)");
   g.addColorStop(1.00, "rgba(255,255,255,0.000)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, sz, sz);
@@ -99,9 +104,11 @@ const Star = ({
     () => (reveal ? revealStart(channel.id, baseY) : null),
     [reveal, channel.id, baseY]
   );
-  // Steep power curve: most stars are barely-there dust; rare anchors have real presence
+  // Size curve: every channel reads as a real star (raised floor), anchors
+  // still dominate. The old floor (0.072) rendered small channels as
+  // sub-pixel dust that disappeared entirely at overview distance.
   const t = Math.max(0, Math.min(1, (channel.size - 1.1) / 0.9));
-  const baseScale = 0.072 + Math.pow(t, 1.6) * 0.52;
+  const baseScale = 0.15 + Math.pow(t, 1.25) * 0.55;
 
   const drift = useMemo(
     () => ({
@@ -123,14 +130,22 @@ const Star = ({
     [channel.id]
   );
 
-  useFrame(({ clock }, delta) => {
+  useFrame(({ clock, camera }, delta) => {
     if (!groupRef.current || !matRef.current) return;
     const t = clock.getElapsedTime();
+
+    // Distance compensation: a fixed-size sprite shrinks toward sub-pixel as
+    // the camera pulls back, which is why the galaxy looked faint zoomed out.
+    // sqrt keeps SOME depth falloff (full compensation would flatten the scene).
+    const dist = camera.position.distanceTo(groupRef.current.position);
+    const distScale = Math.min(2.1, Math.max(0.9, Math.sqrt(dist / REF_DISTANCE)));
+    const scaleFor = (s: number) => s * distScale;
 
     if (positionDriven) {
       // Epoch driver owns position; keep scale/opacity/color behavior only.
       const s0 = groupRef.current.scale.x;
-      groupRef.current.scale.setScalar(s0 + (baseScale - s0) * 0.1);
+      const target = scaleFor(baseScale);
+      groupRef.current.scale.setScalar(s0 + (target - s0) * 0.1);
       matRef.current.opacity += (1.0 - matRef.current.opacity) * 0.12;
       return;
     }
@@ -155,14 +170,16 @@ const Star = ({
     groupRef.current.position.y =
       baseY + Math.sin(t * drift.speed + drift.phase) * drift.amp;
 
-    // Smooth scale toward state target
-    const targetScale = isActive
-      ? baseScale * 2.6
-      : hovered
-      ? baseScale * 2.2
-      : isNeighbor
-      ? baseScale * 1.25
-      : baseScale;
+    // Smooth scale toward state target (distance-compensated)
+    const targetScale = scaleFor(
+      isActive
+        ? baseScale * 2.6
+        : hovered
+        ? baseScale * 2.2
+        : isNeighbor
+        ? baseScale * 1.25
+        : baseScale
+    );
     const s = groupRef.current.scale.x;
     groupRef.current.scale.setScalar(s + (targetScale - s) * 0.10);
 

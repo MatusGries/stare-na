@@ -163,9 +163,11 @@ const Scene = ({
       </mesh>
 
       {/* Anchored backdrop: deep field stars + nebulas — no rotation, no shimmer */}
-      <Stars radius={280} depth={180} count={14000} factor={0.65} saturation={0} fade speed={0} />
-      <Stars radius={200} depth={120} count={7500}  factor={1.6}  saturation={0} fade speed={0} />
-      <Stars radius={85}  depth={55}  count={2800}  factor={1.05} saturation={0} fade speed={0} />
+      {/* Backdrop thinned so CHANNEL stars are the brightest thing in frame —
+          the near layer especially was competing with real channels. */}
+      <Stars radius={280} depth={180} count={11000} factor={0.6}  saturation={0} fade speed={0} />
+      <Stars radius={200} depth={120} count={5200}  factor={1.25} saturation={0} fade speed={0} />
+      <Stars radius={85}  depth={55}  count={1400}  factor={0.85} saturation={0} fade speed={0} />
       <NebulaLayer />
 
       <SupportStars channels={channels} />

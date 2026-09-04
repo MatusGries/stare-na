@@ -32,8 +32,8 @@ const Label = ({
     const d = camera.position.distanceTo(position);
     // clear between ~20 and ~70 units out; ghosted when very close or far
     const near = THREE.MathUtils.smoothstep(d, 8, 22);
-    const far = 1 - THREE.MathUtils.smoothstep(d, 65, 110);
-    const target = near * far * (dimmed ? 0.12 : 0.55);
+    const far = 1 - THREE.MathUtils.smoothstep(d, 80, 130);
+    const target = near * far * (dimmed ? 0.22 : 0.95);
     const cur = parseFloat(ref.current.style.opacity || "0");
     ref.current.style.opacity = String(cur + (target - cur) * 0.08);
   });
@@ -49,12 +49,15 @@ const Label = ({
           pointerEvents: dimmed ? "none" : "auto",
           cursor: "pointer",
           fontFamily: mono,
-          fontSize: 10,
-          letterSpacing: "0.30em",
+          fontSize: 12,
+          fontWeight: 500,
+          letterSpacing: "0.34em",
           textTransform: "uppercase",
           whiteSpace: "nowrap",
-          color: "rgba(255,255,255,0.92)",
-          textShadow: "0 0 10px rgba(0,0,4,0.95), 0 1px 3px rgba(0,0,4,0.9)",
+          color: "rgba(255,255,255,1)",
+          // Dark halo + faint glow: legible over both empty space and bloom
+          textShadow:
+            "0 0 14px rgba(0,0,4,0.98), 0 0 4px rgba(0,0,4,0.95), 0 1px 3px rgba(0,0,4,0.9), 0 0 22px rgba(190,215,255,0.28)",
           userSelect: "none",
           transform: "translateY(-14px)",
         }}

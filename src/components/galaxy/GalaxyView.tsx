@@ -131,8 +131,8 @@ const GalaxyView = ({
                   all: "unset", cursor: "pointer",
                   fontFamily: "'DM Mono', ui-monospace, monospace", fontSize: 11,
                   letterSpacing: "0.18em", textTransform: "uppercase",
-                  color: "rgba(255,255,255,0.7)",
-                  borderBottom: "1px solid rgba(255,255,255,0.18)",
+                  color: "rgba(255,255,255,0.92)",
+                  borderBottom: "1px solid rgba(255,255,255,0.30)",
                   paddingBottom: 2,
                   transition: "color 0.25s ease, border-color 0.25s ease",
                 }}
