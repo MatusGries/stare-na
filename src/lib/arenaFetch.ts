@@ -7,6 +7,7 @@
 //     pages return FEWER items than `per` (privates filtered post-pagination)
 //   · channel list is NOT recency-sorted → the 750 cap sorts client-side
 import type { RawChannel } from "./pipeline/types";
+import { decodeEntities } from "./decodeEntities";
 
 const ARENA = "https://api.are.na/v2";
 export const PER_PAGE = 25;
@@ -91,8 +92,9 @@ interface FetchProgress {
 const mapChannel = (c: any): RawChannel => ({
   id: c.id,
   slug: c.slug,
-  title: c.title ?? "",
-  description: c.metadata?.description ?? c.description ?? "",
+  // Are.na entity-encodes symbol-heavy titles ("EVA ⋆｡°✩") — decode once here
+  title: decodeEntities(c.title ?? ""),
+  description: decodeEntities(c.metadata?.description ?? c.description ?? ""),
   blockCount: c.length ?? 0,
   followerCount: c.follower_count ?? 0,
   thumbnailUrl: null,
@@ -197,7 +199,7 @@ export const enrichChannels = async (
         signal
       );
       targets[i].enrichmentTitles = (data.contents ?? [])
-        .map((b: any) => (b.title || b.generated_title || "").trim())
+        .map((b: any) => decodeEntities(b.title || b.generated_title || "").trim())
         .filter(Boolean);
     } catch {
       // skip — enrichment is best-effort
@@ -212,7 +214,7 @@ export const fetchBlockPreviews = async (channelId: string, signal?: AbortSignal
   const data = await getJson(`${ARENA}/channels/${channelId}/contents?per=6`, signal);
   return (data.contents ?? []).map((b: any) => ({
     id: b.id,
-    title: b.title || b.generated_title || "",
+    title: decodeEntities(b.title || b.generated_title || ""),
     kind: b.kind || b.class || "Block",
     imageUrl: b.image?.thumb?.url ?? b.image?.square?.url ?? null,
   }));

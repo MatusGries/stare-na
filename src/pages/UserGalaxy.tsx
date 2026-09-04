@@ -39,7 +39,7 @@ const statusText = (p: GalaxyProgress | null, username: string): string => {
 
 // Narration beats over the live condensation (milestone B). Cycles through
 // the lines while the galaxy forms; unmounted the moment it settles.
-const NARRATION_BEAT_MS = 2700;
+const NARRATION_BEAT_MS = 4200; // paced to the 14s condensation (3 beats)
 const Narration = ({ count, lines: linesProp }: { count: number; lines?: string[] }) => {
   const lines = linesProp ?? [
     `${count} channels, gathered`,

@@ -5,6 +5,7 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Stars, Line } from "@react-three/drei";
 import { EffectComposer, Bloom, Vignette, Noise } from "@react-three/postprocessing";
 import Star from "./Star";
+import ConstellationLabels from "./ConstellationLabels";
 import BlackHole from "./BlackHole";
 import CameraController from "./CameraController";
 import SupportStars from "./SupportStars";
@@ -22,16 +23,20 @@ interface GalaxyProps {
    *  aligned to `channels` order). When present, playback replaces the T6
    *  reveal and drives star positions until it settles. */
   epochFrames?: number[][][];
-  /** Playback length: ~8s for the condensation, ~2.5s for the B2 settle. */
+  /** Playback length: ~14s for the condensation, ~2.5s for the B2 settle. */
   epochDuration?: number;
   onCondensed?: () => void;
+  /** B3: named clusters, labeled in 3D at their centroids. */
+  constellations?: import("@/lib/pipeline/constellations").Constellation[];
+  /** Fade the labels back while a panel or search is in focus. */
+  constellationsDimmed?: boolean;
   onSelectChannel: (channel: Channel) => void;
   onBlackHoleClick: () => void;
   resetSignal: number;
   onOverviewRequest: () => void;
 }
 
-const CONDENSE_SECONDS = 8;
+const CONDENSE_SECONDS = 14;
 
 // Drives star group positions through the recorded UMAP epochs, then hands
 // control back to the stars (drift). Imperative on purpose: zero per-frame
@@ -59,8 +64,9 @@ const EpochDriver = ({
       return;
     }
     t.current = Math.min(1, t.current + delta / duration);
-    // ease-out tail: the settle should feel physical, not clipped
-    const e = 1 - Math.pow(1 - t.current, 2);
+    // ease-out cubic: early epochs (where the big structure forms) read slowly,
+    // the tail glides in rather than clipping.
+    const e = 1 - Math.pow(1 - t.current, 3);
     const pos = e * (frames.length - 1);
     const i = Math.min(frames.length - 2, Math.floor(pos));
     const frac = pos - i;
@@ -91,6 +97,8 @@ const Scene = ({
   epochFrames,
   epochDuration,
   onCondensed,
+  constellations,
+  constellationsDimmed,
   onSelectChannel,
   onBlackHoleClick,
   resetSignal,
@@ -199,6 +207,16 @@ const Scene = ({
           groups={starGroups}
           duration={epochDuration}
           onDone={handleCondensed}
+        />
+      )}
+
+      {/* Named regions, in the galaxy itself — only once it has settled */}
+      {condensed && !!constellations?.length && (
+        <ConstellationLabels
+          constellations={constellations}
+          channels={channels}
+          dimmed={!!constellationsDimmed}
+          onSelect={onSelectChannel}
         />
       )}
 
